@@ -1,3 +1,22 @@
+{-
+  Copyright 2011-2012 Zac Meadows
+
+  This file is part of sunWM.
+
+  sunWM is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  sunWM is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with sunWM.  If not, see <http://www.gnu.org/licenses/>.
+-}
+
 {-# LANGUAGE GeneralizedNewtypeDeriving, BangPatterns, TemplateHaskell, TypeOperators #-}
 module Core where
 
@@ -82,8 +101,8 @@ setup !uc = openDisplay [] >>= \dis -> do
     nmlck <- fmap (foldr (.|.) 0) $ sequence [ do
             ks <- keycodeToKeysym dis kc 0
             if ks == xK_Num_Lock
-            then return (setBit 0 (fromIntegral m)) 
-            else return (0 :: KeyMask)
+              then return (setBit 0 (fromIntegral m)) 
+              else return (0 :: KeyMask)
             | (m, kcs) <- ms, kc <- kcs, kc /= 0]
     selectInput dis rt $  substructureRedirectMask .|. substructureNotifyMask .|. structureNotifyMask
                           .|. buttonPressMask .|. propertyChangeMask
@@ -198,9 +217,9 @@ removeWindow w = do
   ff <- gets (focusFloat . focusWS)
   fw <- fmap focusedWin $ gets focusWS
   if (isJust ff)
-  then let ffw = fromJust ff in
-    when (ffw == w) $ (focusFloat . focusWS) =: Nothing
-  else do 
+    then let ffw = fromJust ff in
+      when (ffw == w) $ (focusFloat . focusWS) =: Nothing
+    else do 
     modifyState (annihilateWin w)
     case fw of
       Just w' -> when (w' == w) $ do

@@ -10,4 +10,4 @@ Cabal-Version: >= 1.10
 
 Executable sunwm
   Main-is: Sunwm.hs
-  Build-Depends: base, X11, fclabels, mtl
+  Build-Depends: base, X11, fclabels, mtl, containers, extensible-exceptions, unix, transformers
