@@ -1,0 +1,13 @@
+Name: sunWM
+Version: 0.0.1
+Description: X11 tiling window-manager
+License: GPL
+License-file: LICENSE
+Author: Zac Meadows
+Maintainer: zmeadows@gmail.com
+Build-Type: Simple
+Cabal-Version: >= 1.10
+
+Executable sunwm
+  Main-is: Sunwm.hs
+  Build-Depends: base, X11, fclabels, mtl
