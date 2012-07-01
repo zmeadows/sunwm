@@ -35,6 +35,7 @@ import Data.Maybe (fromJust, isJust)
 import qualified Data.Map as M (Map(..), fromList, lookup, keys, insert, union, map,delete)
 
 import Control.Category
+import Control.Concurrent
 import Prelude hiding ((.), id)
 import Data.Label as L hiding (fw,bw)
 import Data.Label.PureM as P
@@ -121,16 +122,17 @@ splitV r = safeModify focusWS (doSplit $ vSplit r) >>
 -- | Configure the sizes of all mapped windows according to current tree shape. 
 arrange :: SUN ()
 arrange = asks display >>= \dis -> do
-    configureBarScr
+    --configureBarScr
     t <- gets (tree . focusWS)
     sw <- gets screenWidth ; sh <- gets screenHeight
     bw <- fmap ((*) 2) $ asks (borderWidth . userConf)
     bh <- fmap fip $ gets barHeight
     let ws = flattenToDimWins sw sh t
-        putWindow ((x,y,w,h),win) = moveResizeWindow dis win x (y + bh) (w - bw) (h - bw)
+        putWindow ((x,y,w,h),win) = do 
+          moveResizeWindow dis win x (y + bh) (w - bw) (h - bw)
     when (length ws > 1 || L.get trail t /= []) $ liftX $ mapM_ putWindow ws
-    when (length ws == 1 && L.get trail t == []) $ liftX 
-         $ moveResizeWindow dis (snd $ head ws) 0 bh sw sh
+    when (length ws == 1 && L.get trail t == []) $ do
+      liftX $ moveResizeWindow dis (snd $ head ws) 0 bh sw sh
 
 resizeFrame :: Direction -> SplitRatio -> SUN ()
 resizeFrame dir dr = gets (trail . tree . focusWS) >>= \t ->
@@ -271,23 +273,26 @@ atom_WM_PROTOCOLS       = getAtom "WM_PROTOCOLS"
 atom_WM_DELETE_WINDOW   = getAtom "WM_DELETE_WINDOW"
 atom_WM_STATE           = getAtom "WM_STATE"
 
-configureBarScr :: SUN ()
-configureBarScr = do
+configureBarScr :: Int -> SUN ()
+configureBarScr n = do
   dis <- asks display ; rt <- asks root
   (_,_,qt) <- liftX $ queryTree dis rt
   qt' <- filterM isDock qt
   let scr = defaultScreen dis
       sw = fid (displayWidth dis scr)
       sh = fid (displayHeight dis scr)
+  screenWidth =: sw
   when (not $ null qt') $ do
       bwa <- liftX $ getWindowAttributes dis (head qt')
       let bh = fid $ wa_height bwa + wa_y bwa
       barHeight =: bh
       screenHeight =: sh - bh
-  when (null qt) $ do
+  when (null qt' && n < 10) $ do
+      liftX $ threadDelay 100000
+      configureBarScr (n+1)
+  when (null qt' && n >= 10) $ do
       barHeight =: 0
       screenHeight =: sh
-      screenWidth =: sw
 
 -- | Sends formated workspace boxes and window names to stdin of xmobar. 
 updateBar :: SUN ()
@@ -562,7 +567,7 @@ dmenu fn nb nf sb sf = spawn $ concat
 -- | Entry point.
 sunwm :: UserConf -> IO ()
 sunwm !uc = setup uc >>= runSUN 
-    (grabPrefixTops >> updateBar >> configureBarScr >> eventLoop) st
+    (grabPrefixTops >> updateBar >> configureBarScr 0 >> eventLoop) st
   where st = initState $ length $ L.get wsNames uc
 
 -- | Core function of the whole window manager.  Recieves the events
@@ -654,7 +659,7 @@ clickFocusEmptyFrame (x,y) = do
 
 toggleFullScreen :: SUN ()
 toggleFullScreen = do
-  (_,_,_,_,_,_,uc) <- getConf
+  uc <- asks userConf
   ffw <- gets (focusFloat . focusWS)
   fw <- fmap focusedWin $ gets focusWS
   when ((not $ isJust ffw) && isJust fw) $ do
