@@ -24,12 +24,11 @@ import Control.Category
 import Prelude hiding ((.), id)
 import Data.Label
 
-import Data.List (maximumBy, minimumBy, delete, find)
-import Data.Maybe (isJust, fromJust)
+import Data.List (minimumBy, delete, find)
+import Data.Maybe (isJust, isNothing, fromJust)
 import Data.Ord (comparing)
-import Data.Map as M hiding (filter, map, null)
 
-import Graphics.X11.Types (Window, KeyMask)
+import Graphics.X11.Types (Window)
 import Graphics.X11.Xlib.Types (Dimension, Position)
 
 type SplitRatio = Double
@@ -115,11 +114,12 @@ doSplit splitFunc !ws = updateHidden $ modify tree splitFunc ws
                 $ set hidden (tail hws) ws'
           | otherwise = ws'
 
+isFrame :: SUNZipper -> Bool
 isFrame !(SZ (Frame _) _) = True
 isFrame !_ = False
 
 up :: SUNZipper -> SUNZipper
-up sz@(SZ t []) = sz
+up sz@(SZ _ []) = sz
 up (SZ t (LU st rd:ps)) = SZ (Split st t rd) ps
 up (SZ t (RD st lu:ps)) = SZ (Split st lu t) ps
 
@@ -134,21 +134,24 @@ traverse leftOrRight !sz
 
 -- | Remove the currently focused frame, and if it was occupied add the
 -- window the the hidden stack.
+killFrame :: WorkSpace -> WorkSpace
 killFrame !ws
   | null tr = ws
   | otherwise = hideWin $ modify tree deleteFrame ws
   where win = focusedWin ws
         tr = get (trail . tree) ws
-        hideWin = if isJust win then modify hidden ((fromJust win):) else id
-        deleteFrame !(SZ (Frame _) (LU st rd:ps)) = traverse right (SZ rd ps)
-        deleteFrame !(SZ (Frame _) (RD st lu:ps)) = traverse left (SZ lu ps)
+        hideWin = if isJust win then modify hidden (fromJust win :) else id
+        deleteFrame !(SZ (Frame _) (LU _ rd:ps)) = traverse right (SZ rd ps)
+        deleteFrame !(SZ (Frame _) (RD _ lu:ps)) = traverse left (SZ lu ps)
         deleteFrame !sz = sz
 
 left :: SUNZipper -> SUNZipper
 left (SZ (Split st lu rd) ps) = SZ lu (LU st rd:ps)
+left sz = sz
 
 right :: SUNZipper -> SUNZipper
 right (SZ (Split st lu rd) ps) = SZ rd (RD st lu:ps)
+right sz = sz
 
 isLU, isRD :: SUNPath -> Bool
 isLU (LU _ _)= True
@@ -157,7 +160,7 @@ isRD (RD _ _) = True
 isRD _ = False
 
 isSplit :: SUNZipper -> Bool
-isSplit !(SZ (Split _ _ _) _) = True
+isSplit !(SZ (Split {}) _) = True
 isSplit !_ = False
 
 -- | Creates a list of functions, which if applied to a SUNZipper brought
@@ -166,14 +169,15 @@ trailMap :: [SUNPath] -> [SUNZipper -> SUNZipper]
 trailMap !tr = trailMap' tr []
   where 
    trailMap' [] tm = tm
-   trailMap' (t:tr) tm
-     | isLU t = trailMap' tr (left:tm)
-     | isRD t = trailMap' tr (right:tm)
+   trailMap' (t:tr') tm
+     | isLU t = trailMap' tr' (left:tm)
+     | isRD t = trailMap' tr' (right:tm)
+   trailMap' (_:_) tm = tm -- add error handling here
 
 followTrailMap :: [SUNZipper -> SUNZipper] -> SUNZipper -> SUNZipper
-followTrailMap tm !sz = Prelude.foldl (\sz tf -> tf sz) sz tm
+followTrailMap tm !sz = Prelude.foldl (\sz' tf -> tf sz') sz tm
 
-flatten !sz w h = flatten' (top sz) (0,0,w,h)
+flatten !szip wth hgt = flatten' (top szip) (0,0,wth,hgt)
   where flatten' sz@(SZ (Frame _) _) dims = [(dims,sz)]
         flatten' sz@(SZ (Split (V r) _ _) _) (x,y,w,h) =
           let  luDim = (x,y,r.*.w,h)
@@ -189,8 +193,11 @@ flatten !sz w h = flatten' (top sz) (0,0,w,h)
 
 fi :: (Integral a, Num b) => a -> b
 fi = fromIntegral
+
 fir x = fromIntegral x :: SplitRatio
+
 fip x = fromIntegral x :: Position
+
 fid x = fromIntegral x :: Dimension
 
 flattenToDimWins :: Dimension -> Dimension -> SUNZipper 
@@ -198,6 +205,8 @@ flattenToDimWins :: Dimension -> Dimension -> SUNZipper
 flattenToDimWins sw sh !sz = map pullWin $ filter isWin $ flatten sz sw sh
     where isWin (_,t) = (/= Frame Nothing) $ get focus t
           pullWin (d,SZ (Frame (Just a)) _) = (convert d,a)
+          pullWin (d,SZ (Frame Nothing) _) = (convert d, 0) -- ERROR
+          pullWin (d,SZ (Split {}) _) = (convert d,0) -- ERROR
           convert (x,y,w,h) = (fip x, fip y, fid w, fid h)
 
 flattenToWins ::  SUNZipper -> [Window]
@@ -209,7 +218,7 @@ flattenToWins !sz = flattenToWins' $ top sz
 flattenToZips ::  SUNZipper -> [SUNZipper]
 flattenToZips !sz = flattenToZips' $ top sz
   where flattenToZips' (SZ (Frame Nothing) _) = []
-        flattenToZips' sz'@(SZ (Frame (Just w)) _) = [sz']
+        flattenToZips' sz'@(SZ (Frame (Just _)) _) = [sz']
         flattenToZips' !sz' = flattenToZips' (left sz') ++ flattenToZips' (right sz')
 
 changeFocus :: Integral n => Direction -> n -> n -> SUNZipper -> SUNZipper
@@ -253,7 +262,7 @@ isHSplit _ = False
 resizeParent :: SplitRatio -> (SUNPath -> Bool) -> [SUNPath] -> [SUNPath]
 resizeParent dr pathTypeChecker paths
   | psl == paths || psr == [] = paths
-  | otherwise = psl ++ ((head psr) <-> dr:(tail psr))
+  | otherwise = psl ++ (head psr <-> dr : tail psr)
   where (psl,psr) = break pathTypeChecker paths
 
 resize :: Direction -> SplitRatio -> SUNZipper -> SUNZipper
@@ -287,7 +296,7 @@ deleteWin :: Window -> SUNZipper -> SUNZipper
 deleteWin w !sz = case delWinZip of
     Just dwz -> followTrailMap (trailMap $ get trail sz) $ top $ clear dwz
     Nothing -> sz
-  where isDelWin (SZ (Frame a) _) = a == (Just w)
+  where isDelWin (SZ (Frame a) _) = a == Just w
         delWinZip = find isDelWin $ flattenToZips sz
 
 -- | Removes a window from a whole workspace (even if it's hidden)
@@ -296,7 +305,7 @@ destroyWin w !ws = modify tree (deleteWin w) $ modify hidden (Data.List.delete w
 -- | Removes a window from any workspace it may be on, hidden or not.
 annihilateWin :: Window -> SUNState -> SUNState
 annihilateWin w !ss
-  | elem w (getAllWins ss) = ss'
+  | w `elem` getAllWins ss = ss'
   | otherwise = ss
  where ss' = modify focusWS (destroyWin w) 
            $ modify workspaces (map (destroyWin w)) 
@@ -336,7 +345,7 @@ initState !nw = SUNState w 1 ws False Nothing 0 0 0 False
     where ws@(w:_) = replicate nw emptyWS
 
 focusedWin :: WorkSpace -> Maybe Window
-focusedWin = (fromFrame . get tree)
+focusedWin = fromFrame . get tree
 
 -- | Brings a hidden window the the forefront and adds the currently
 -- focused window to the hidden group.
@@ -350,7 +359,7 @@ cycleHidden dir ws
         (h,hs,h',hs') = (head hw, tail hw, last hw, init hw)
         newTreeR = modify tree (replace (Just h)) ws
         newTreeL = modify tree (replace (Just h')) ws
-        w = let fw = focusedWin ws in if isJust fw then [fromJust fw] else []
+        w = let fw = focusedWin ws in [fromJust fw | isJust fw]
 
 -- | A convenience function for retrieving common state values.
 sunGet ::  SUNState -> (Maybe Window, WorkSpace, Int, [WorkSpace])
@@ -374,7 +383,7 @@ moveToWS wsn ss
             in set workspaces (init ls ++ nws:rs) 
              $ set (focusFloat . focusWS) Nothing 
              $ modify (floats . focusWS) (Data.List.delete ffw') ss
-    | fwsn == wsn || (not $ isJust fw) = ss
+    | fwsn == wsn || isNothing fw = ss
     | isJust sfw = 
         let nws = modify tree (replace fw) $ modify hidden (fromJust sfw:) sws
         in set workspaces (init ls ++ nws:rs) ss'
@@ -384,7 +393,7 @@ moveToWS wsn ss
   where (fw,_,fwsn,_) = sunGet ss
         ss' = modify focusWS (cycleHidden R) 
               $ modify (tree . focusWS) clear ss
-        sws = (get workspaces ss') !! (wsn-1)
+        sws = get workspaces ss' !! (wsn-1)
         sfw = fromFrame $ get tree sws
         ffw = get (focusFloat . focusWS) ss
         (ls,rs) = splitAt wsn $ get workspaces ss'
@@ -393,5 +402,5 @@ moveToWS wsn ss
 changeWorkspace :: Int -> SUNState -> SUNState
 changeWorkspace wsn ss = set focusWSNum wsn $ set focusWS nws ss'
   where ss' = updateWorkspace ss
-        (_,_,fwsn,wss) = sunGet ss'
+        (_,_,_,wss) = sunGet ss'
         nws = wss !! (wsn-1)

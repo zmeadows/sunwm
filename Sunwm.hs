@@ -26,12 +26,11 @@ import Data.Bits
 import System.IO
 import qualified Data.Map as M
 
-myBarConf h = XMobarConf 
+myBarConf = XMobarConf 
   ("#0c0c0c", "#c3c3a9") -- focusWS
   ("#7f7f7f", "#e6e6dc") -- hiddenWS
   ("#bfbfbf", "#e6e6dc") -- emptyHiddenWS
   ("#0c0c0c", "#e6e6dc") -- activeWinTitle
-  h
 
 main = do
     h <- spawnPipe "xmobar"
@@ -41,7 +40,7 @@ defaultConfig h = UserConf
       "rgb:4f/4f/4f"     -- Normal Border Color
       "rgb:ff/66/66"     -- Focused Border Color
       1                  -- Border Width
-      defaultKeys      
+      defaultKeys
       defaultTopKeys
       (map show [1..9])  -- Workspace Names (list of strings)
       (0, xK_F13) -- Prefix Key
