@@ -27,25 +27,26 @@ import System.IO
 import qualified Data.Map as M
 
 myBarConf = XMobarConf 
-  ("#0c0c0c", "#c3c3a9") -- focusWS
-  ("#7f7f7f", "#e6e6dc") -- hiddenWS
-  ("#bfbfbf", "#e6e6dc") -- emptyHiddenWS
-  ("#0c0c0c", "#e6e6dc") -- activeWinTitle
+  ("#efefef", "#729fcf") -- focusWS
+  ("#efefef", "#222222") -- hiddenWS
+  ("#8f8f8f", "#222222") -- emptyHiddenWS
+  ("#efefef", "#222222") -- activeWinTitle
 
 main = do
     h <- spawnPipe "xmobar"
     sunwm $ defaultConfig h
 
+defaultConfig :: Handle -> UserConf
 defaultConfig h = UserConf
       "rgb:4f/4f/4f"     -- Normal Border Color
-      "rgb:ff/66/66"     -- Focused Border Color
+      "rgb:72/9f/cf"     -- Focused Border Color
       1                  -- Border Width
       defaultKeys
       defaultTopKeys
       (map show [1..9])  -- Workspace Names (list of strings)
       (0, xK_F13) -- Prefix Key
       (myBarConf h) 
-      "urxvtc +sb"            -- Terminal Command
+      "urxvt256c +sb"            -- Terminal Command
 
 defaultKeys :: M.Map (KeyMask, KeySym) (SUN ())
 defaultKeys = M.fromList
@@ -57,8 +58,8 @@ defaultKeys = M.fromList
     , ((shiftMask, xK_v), splitV 0.65 >> focusTo R)
     , ((0, xK_n), splitH 0.5 >> focusTo D)
     , ((shiftMask, xK_n), splitH 0.65 >> focusTo D)
-    , ((0, xK_p),  dmenu "-*-gohufont-medium-*-*-*-14-*-*-*-*-*-*-*"
-                         "#e6e6dc" "#8f8f8f" "#e6e6dc" "#0c0c0c")
+    , ((0, xK_p),  dmenu "-*-terminus-medium-*-*-*-14-*-*-*-*-*-*-*"
+                         "#222222" "#efefef" "#222222" "#729fcf")
     , ((shiftMask, xK_h), swap L)
     , ((shiftMask, xK_l), swap R)
     , ((shiftMask, xK_k), swap U)

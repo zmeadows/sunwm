@@ -22,7 +22,7 @@ module STree where
 
 import Control.Category
 import Prelude hiding ((.), id)
-import Data.Label
+import Data.Label hiding (fw)
 
 import Data.List (minimumBy, delete, find)
 import Data.Maybe (isJust, isNothing, fromJust)
@@ -177,6 +177,7 @@ trailMap !tr = trailMap' tr []
 followTrailMap :: [SUNZipper -> SUNZipper] -> SUNZipper -> SUNZipper
 followTrailMap tm !sz = Prelude.foldl (\sz' tf -> tf sz') sz tm
 
+flatten :: (Integral t1, Integral t) => SUNZipper -> t -> t1 -> [((t, t1, t, t1), SUNZipper)]
 flatten !szip wth hgt = flatten' (top szip) (0,0,wth,hgt)
   where flatten' sz@(SZ (Frame _) _) dims = [(dims,sz)]
         flatten' sz@(SZ (Split (V r) _ _) _) (x,y,w,h) =
@@ -194,10 +195,13 @@ flatten !szip wth hgt = flatten' (top szip) (0,0,wth,hgt)
 fi :: (Integral a, Num b) => a -> b
 fi = fromIntegral
 
+fir :: Integral a => a -> SplitRatio
 fir x = fromIntegral x :: SplitRatio
 
+fip :: Integral a => a -> Position
 fip x = fromIntegral x :: Position
 
+fid :: Integral a => a -> Dimension
 fid x = fromIntegral x :: Dimension
 
 flattenToDimWins :: Dimension -> Dimension -> SUNZipper 
@@ -233,10 +237,10 @@ changeFocus dir scrw scrh !sz =
         D -> abs (y + h - y') < 10
       cands = filter finder ts'
       finder' (x',y',w',h') = case dir of
-        L -> min (abs ((y+h)-(y'+h'))) (abs (y-y'))
-        R -> min (abs ((y+h)-(y'+h'))) (abs (y-y'))
-        U -> min (abs ((x+h)-(x'+w'))) (abs (x-x'))
-        D -> min (abs ((x+h)-(x'+w'))) (abs (x-x'))
+        L -> min (abs ((y + h)-(y' + h'))) (abs (y - y'))
+        R -> min (abs ((y + h)-(y' + h'))) (abs (y - y'))
+        U -> min (abs ((x + h)-(x' + w'))) (abs (x - x'))
+        D -> min (abs ((x + h)-(x' + w'))) (abs (x - x'))
       newFocus = snd $ minimumBy (comparing (finder' . fst)) cands
   in case cands of
         [] -> sz
@@ -297,9 +301,11 @@ deleteWin w !sz = case delWinZip of
     Just dwz -> followTrailMap (trailMap $ get trail sz) $ top $ clear dwz
     Nothing -> sz
   where isDelWin (SZ (Frame a) _) = a == Just w
+        isDelWin (SZ (Split {}) _) = False -- ERROR
         delWinZip = find isDelWin $ flattenToZips sz
 
 -- | Removes a window from a whole workspace (even if it's hidden)
+destroyWin :: Window -> WorkSpace -> WorkSpace
 destroyWin w !ws = modify tree (deleteWin w) $ modify hidden (Data.List.delete w) ws
 
 -- | Removes a window from any workspace it may be on, hidden or not.

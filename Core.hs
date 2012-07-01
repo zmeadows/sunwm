@@ -36,7 +36,7 @@ import qualified Data.Map as M (Map(..), fromList, lookup, keys, insert, union, 
 
 import Control.Category
 import Prelude hiding ((.), id)
-import Data.Label as L
+import Data.Label as L hiding (fw,bw)
 import Data.Label.PureM as P
 
 import System.IO
@@ -127,7 +127,7 @@ arrange = asks display >>= \dis -> do
     bw <- fmap ((*) 2) $ asks (borderWidth . userConf)
     bh <- fmap fip $ gets barHeight
     let ws = flattenToDimWins sw sh t
-        putWindow ((x,y,w,h),win) = moveResizeWindow dis win x (y+bh) (w-bw) (h-bw)
+        putWindow ((x,y,w,h),win) = moveResizeWindow dis win x (y + bh) (w - bw) (h - bw)
     when (length ws > 1 || L.get trail t /= []) $ liftX $ mapM_ putWindow ws
     when (length ws == 1 && L.get trail t == []) $ liftX 
          $ moveResizeWindow dis (snd $ head ws) 0 bh sw sh
@@ -192,6 +192,7 @@ banish = do
 
 equalize = safeModify (tree . focusWS) makeEqual >> arrange
 
+flipT :: SUN ()
 flipT = safeModify (tree . focusWS) flipTree >> arrange >> refresh >> updateFocus
 
 -- | Kill a window. Properly. Thanks XMonad!
@@ -247,8 +248,13 @@ isInProperty p v w = do
 isFullscreen :: Window -> SUN Bool
 isFullscreen = isInProperty "_NET_WM_STATE" "_NET_WM_STATE_FULLSCREEN"
 
+isDialog :: Window -> SUN Bool
 isDialog = isInProperty "_NET_WM_WINDOW_TYPE" "_NET_WM_WINDOW_TYPE_DIALOG"
+
+isSplash :: Window -> SUN Bool
 isSplash = isInProperty "_NET_WM_WINDOW_TYPE" "_NET_WM_WINDOW_TYPE_SPLASH"
+
+isDock :: Window -> SUN Bool
 isDock = isInProperty "_NET_WM_WINDOW_TYPE" "_NET_WM_WINDOW_TYPE_DOCK"
 
 -- | Get a window property from atom
@@ -378,18 +384,18 @@ xGrabButton grab w = asks display >>= \dis -> do
               grabModeAsync grabModeSync none none                                
             grabButton dis button3 m w False buttonPressMask                             
               grabModeAsync grabModeSync none none                                
-       
+
 -- | Draws the dashed border around a focused, empty frame.
 drawFrameBorder :: SUN ()
 drawFrameBorder = do
-    (dis,rt,sw,sh,nc,fc,uc) <- getConf
+    (dis,rt,sw,sh,_,fc,uc) <- getConf
     t <- gets (tree . focusWS)
     fs <- gets (floats . focusWS)
     bh <- gets barHeight
     let mt = find ((==) t . snd) $ flatten t sw sh
         bw = L.get borderWidth uc
     when (isJust mt && null fs) $ liftX $ do
-        let ((x,y,w,h),nt) = fromJust mt
+        let ((x,y,w,h),_) = fromJust mt
         gc <- createGC dis rt
         setLineAttributes dis gc (fi bw) lineSolid capButt joinMiter
         setForeground dis gc fc
@@ -406,15 +412,13 @@ getConf = do
 
 eventDispatch :: Event -> SUN ()
 
-eventDispatch !evt@(UnmapEvent {ev_window = w, ev_send_event = synthetic}) = do
+eventDispatch !(UnmapEvent {ev_window = w, ev_send_event = synthetic}) = do
   when synthetic (removeWindow w)
 
 eventDispatch !(MapRequestEvent {ev_window = win}) = do
-    (dis,rt,sw,sh,nc,fc,uc) <- getConf
     fw <- fmap focusedWin $ gets focusWS
     allWins <- stateFunc getAllWins
     isF <- isFullscreen win ; isD <- isDialog win ; isS <- isSplash win
-    ws <- gets focusWS
     unless (win `elem` allWins || isF || isD || isS) $ do
       when (isJust fw) $ (hidden . focusWS) =. (fromJust fw:)
       (tree . focusWS) =. (replace (Just win))
@@ -427,13 +431,12 @@ eventDispatch !evt@(ButtonEvent {ev_window = w, ev_event_type = t, ev_x = x, ev_
       rt <- asks root
       when (w == rt) $ clickFocusEmptyFrame (fid x, fid y)
       when (w /= rt) $ do
-      dis <- asks display
       cm <- cleanMask $ ev_state evt
       when ((cm, ev_button evt) == (0,button1)) $ clickFocus w
       when ((cm, ev_button evt) == (mod1Mask,button1)) $ mouseMove w
       when ((cm, ev_button evt) == (mod1Mask,button3)) $ mouseResize w
 
-eventDispatch !evt@(MotionEvent {ev_event_type = _t, ev_x = x, ev_y = y}) = do
+eventDispatch !(MotionEvent {ev_event_type = _t, ev_x = x, ev_y = y}) = do
   drag <- gets dragging
   dis <- asks display
   case drag of
@@ -444,7 +447,7 @@ eventDispatch !evt@(MotionEvent {ev_event_type = _t, ev_x = x, ev_y = y}) = do
 
     Nothing -> return () -- This shouldn't ever happen though. 
 
-eventDispatch !evt@(ButtonEvent {ev_window = w, ev_event_type = t})
+eventDispatch !(ButtonEvent {ev_event_type = t})
   | t == buttonRelease = do
       drag <- gets dragging
       case drag of
@@ -651,11 +654,10 @@ clickFocusEmptyFrame (x,y) = do
 
 toggleFullScreen :: SUN ()
 toggleFullScreen = do
-  (dis,_,sw,sh,_,_,uc) <- getConf
+  (_,_,_,_,_,_,uc) <- getConf
   ffw <- gets (focusFloat . focusWS)
   fw <- fmap focusedWin $ gets focusWS
   when ((not $ isJust ffw) && isJust fw) $ do
-    sw <- gets screenWidth ; sh <- gets screenHeight
     float $ fromJust fw
     inFullScreen =: True
     let bw = L.get borderWidth uc
