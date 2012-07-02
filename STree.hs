@@ -56,14 +56,14 @@ data SUNState = SUNState
     , _barHeight    :: !Dimension
     , _screenWidth  :: !Dimension
     , _screenHeight :: !Dimension
-    , _inFullScreen :: Bool
     } deriving (Show, Eq)
 
 data WorkSpace = WorkSpace
-    { _tree       :: !(SUNZipper)
-    , _hidden     :: ![Window]
-    , _floats     :: ![Window]
-    , _focusFloat :: !(Maybe Window)
+    { _tree         :: !(SUNZipper)
+    , _hidden       :: ![Window]
+    , _floats       :: ![Window]
+    , _focusFloat   :: !(Maybe Window)
+    , _inFullScreen :: Bool
     } deriving (Show, Eq)
 
 data Direction = L | R | U | D
@@ -85,7 +85,7 @@ emptyZipper :: SUNZipper
 emptyZipper = SZ emptyFrame []
 
 emptyWS :: WorkSpace
-emptyWS = WorkSpace emptyZipper [] [] Nothing
+emptyWS = WorkSpace emptyZipper [] [] Nothing False
 
 walkTrail :: SUNPath -> SUNZipper -> SUNZipper
 walkTrail p = modify trail (p:)
@@ -347,7 +347,7 @@ flipTree !sz = let tsz = trailMap $ get trail sz
         flipIt f@(Frame _) = f
 
 initState :: Int -> SUNState
-initState !nw = SUNState w 1 ws False Nothing 0 0 0 False
+initState !nw = SUNState w 1 ws False Nothing 0 0 0
     where ws@(w:_) = replicate nw emptyWS
 
 focusedWin :: WorkSpace -> Maybe Window
@@ -408,5 +408,5 @@ moveToWS wsn ss
 changeWorkspace :: Int -> SUNState -> SUNState
 changeWorkspace wsn ss = set focusWSNum wsn $ set focusWS nws ss'
   where ss' = updateWorkspace ss
-        (_,_,_,wss) = sunGet ss'
+        wss = get workspaces ss
         nws = wss !! (wsn-1)

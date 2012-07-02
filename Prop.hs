@@ -29,29 +29,30 @@ import Data.List
 instance Arbitrary SUNState where
   arbitrary = do
     wins <- Test.QuickCheck.resize 100 (listOf $ elements [1..99999])
-    a <- listOf $ elements $ treeOps
-    b <- listOf $ elements $ wsOps
-    c <- listOf $ elements $ ssOps
-    let winOps = map (\w -> modify (tree . focusWS) (replace (Just w))) wins
+    a <- listOf $ elements treeOps
+    b <- listOf $ elements wsOps
+    c <- listOf $ elements ssOps
+    let winOps = map (modify (tree . focusWS) . replace . Just) wins
     return $ applyOps emptyState $ intertwine winOps (a ++ b ++ c)
 
+treeOps :: [SUNState -> SUNState]
 treeOps = map (modify (tree . focusWS)) $
-  (replicate 4 (vSplit 0.5)) ++
-  (replicate 4 (hSplit 0.5)) ++
-  (replicate 10 (changeFocus U 1280 800)) ++
-  (replicate 10 (changeFocus D 1280 800)) ++
-  (replicate 10 (changeFocus L 1280 800)) ++
-  (replicate 10 (changeFocus R 1280 800)) ++
-  (replicate 7 (STree.resize R 0.02)) ++
-  (replicate 7 (STree.resize D 0.02)) ++
-  (replicate 7 (STree.resize L 0.02)) ++
-  (replicate 7 (STree.resize U 0.02)) ++
-  (replicate 2 flipTree) ++
-  (replicate 2 makeEqual)
+  replicate 4 (vSplit 0.5) ++
+  replicate 4 (hSplit 0.5) ++
+  replicate 10 (changeFocus U 1280 800) ++
+  replicate 10 (changeFocus D 1280 800) ++
+  replicate 10 (changeFocus L 1280 800) ++
+  replicate 10 (changeFocus R 1280 800) ++
+  replicate 7 (STree.resize R 0.02) ++
+  replicate 7 (STree.resize D 0.02) ++
+  replicate 7 (STree.resize L 0.02) ++
+  replicate 7 (STree.resize U 0.02) ++
+  replicate 2 flipTree ++
+  replicate 2 makeEqual
 
 wsOps = map (modify focusWS) $
-  (replicate 10 (cycleHidden R)) ++
-  (replicate 10 (cycleHidden L))
+  replicate 10 (cycleHidden R) ++
+  replicate 10 (cycleHidden L)
 
 ssOps = map moveToWS [1..9] ++ map changeWorkspace [1..9]
 
@@ -62,7 +63,7 @@ intertwine' [] _ c = c
 intertwine' _ [] c = c
 intertwine' (a:as) (b:bs) c = intertwine' as bs (a:b:c)
 
-applyOps = foldl (\ss sf -> modifySafe sf ss)
+applyOps = foldl (flip modifySafe)
 
 modifySafe :: (SUNState -> SUNState) -> SUNState -> SUNState
 modifySafe sf ss

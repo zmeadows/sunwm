@@ -25,14 +25,14 @@ import Util
 
 import Graphics.X11.Xlib hiding (refreshKeyboardMapping)
 import Graphics.X11.Xlib.Extras
-import Foreign.C.Types (CLong, CInt)
+import Foreign.C.Types (CLong)
 
 import Control.Monad.State hiding (gets)
 import Control.Monad.Reader hiding (asks)
 import Data.Bits
 import Data.List (delete, (\\), find, intercalate)
-import Data.Maybe (fromJust, isJust)
-import qualified Data.Map as M (Map(..), fromList, lookup, keys, insert, union, map,delete)
+import Data.Maybe (fromMaybe, fromJust, isNothing, isJust)
+import qualified Data.Map as M (Map, lookup, keys)
 
 import Control.Category
 import Control.Concurrent
@@ -113,26 +113,27 @@ setup !uc = openDisplay [] >>= \dis -> do
     sync dis False
     return $ SUNConf dis rt uc nc fc nmlck
 
+splitH :: SplitRatio -> SUN ()
 splitH r = safeModify focusWS (doSplit $ hSplit r) >>
            arrange >> refresh >> updateFocus >> updateBar
 
+splitV :: SplitRatio -> SUN ()
 splitV r = safeModify focusWS (doSplit $ vSplit r) >>
            arrange >> refresh >> updateFocus >> updateBar
 
 -- | Configure the sizes of all mapped windows according to current tree shape. 
 arrange :: SUN ()
 arrange = asks display >>= \dis -> do
-    --configureBarScr
     t <- gets (tree . focusWS)
-    sw <- gets screenWidth ; sh <- gets screenHeight
-    bw <- fmap ((*) 2) $ asks (borderWidth . userConf)
+    (sw,sh) <- getScrDims
+    bw <- fmap (2 *) $ asks (borderWidth . userConf)
     bh <- fmap fip $ gets barHeight
     let ws = flattenToDimWins sw sh t
-        putWindow ((x,y,w,h),win) = do 
-          moveResizeWindow dis win x (y + bh) (w - bw) (h - bw)
-    when (length ws > 1 || L.get trail t /= []) $ liftX $ mapM_ putWindow ws
-    when (length ws == 1 && L.get trail t == []) $ do
-      liftX $ moveResizeWindow dis (snd $ head ws) 0 bh sw sh
+        putWindow ((x,y,w,h),win) = moveResizeWindow dis win x (y + bh) (w - bw) (h - bw)
+    when (length ws > 1 || L.get trail t /= [])
+      $ liftX $ mapM_ putWindow ws
+    when (length ws == 1 && L.get trail t == [])
+      $ liftX $ moveResizeWindow dis (snd $ head ws) 0 bh sw sh
 
 resizeFrame :: Direction -> SplitRatio -> SUN ()
 resizeFrame dir dr = gets (trail . tree . focusWS) >>= \t ->
@@ -140,20 +141,22 @@ resizeFrame dir dr = gets (trail . tree . focusWS) >>= \t ->
     safeModify (tree . focusWS) (resize dir dr) 
     arrange >> refresh >> updateFocus >> updateBar
 
+-- | Make sure a function that modifies state meets certain criteria before
+-- actually applying it.  (ex: doesn't create exceedingly small windows)
 safeModify :: (SUNState :-> a) -> (a -> a) -> SUN ()
-safeModify lens f = do
-    ss' <- stateFunc (L.modify lens f)
+safeModify lns f = do
+    ss' <- stateFunc (L.modify lns f)
     sw <- gets screenWidth ; sh <- gets screenHeight ; let nt = L.get (tree . focusWS) ss'
-    inFS <- gets inFullScreen
-    when (not inFS && (all notTooSmall $ map fst $ flatten nt sw sh)) $ lens =. f
+    inFS <- gets (inFullScreen . focusWS)
+    when (not inFS && all notTooSmall (map fst $ flatten nt sw sh)) $ lns =. f
   where notTooSmall (_,_,w,h) = w > 50 && h > 50
 
 -- | Cycles through hidden windows in given direction.
 raiseHidden :: Direction -> SUN ()
 raiseHidden dir = do
   ff <- fmap isJust $ gets (focusFloat . focusWS)
-  when (not ff) $ do
-    focusWS =. (cycleHidden dir)
+  unless ff $ do
+    focusWS =. cycleHidden dir
     arrange >> refresh >> updateFocus >> updateBar
  
 -- | Used for when you want to apply a function to the whole state at once.
@@ -192,6 +195,7 @@ banish = do
     sw <- gets screenWidth ; sh <- gets screenHeight
     liftX $ warpPointer dis none rt 0 0 0 0 (fi sw) $ fi sh + bh
 
+equalize :: SUN ()
 equalize = safeModify (tree . focusWS) makeEqual >> arrange
 
 flipT :: SUN ()
@@ -200,26 +204,26 @@ flipT = safeModify (tree . focusWS) flipTree >> arrange >> refresh >> updateFocu
 -- | Kill a window. Properly. Thanks XMonad!
 killWindow :: SUN ()
 killWindow = asks display >>= \dis -> do
-    wmdelt <- atom_WM_DELETE_WINDOW
-    wmprot <- atom_WM_PROTOCOLS
+    wmdelt <- atomWMDELETEWINDOW
+    wmprot <- atomWMPROTOCOLS
     fw <- fmap focusedWin $ gets focusWS
     ffw <- gets (focusFloat . focusWS)
     liftX $ when (isJust fw || isJust ffw) $ do
-    let w = if (isJust ffw) then fromJust ffw else fromJust fw
+    let w = fromMaybe (fromJust fw) ffw
     protocols <- getWMProtocols dis w
     if wmdelt `elem` protocols
       then allocaXEvent $ \ev -> do
            setEventType ev clientMessage
            setClientMessageEvent ev w wmprot 32 wmdelt 0
            sendEvent dis w False noEventMask ev
-      else killClient dis w >> return ()
+      else void (killClient dis w)
 
 removeWindow :: Window -> SUN ()
 removeWindow w = do
   fs <- gets (floats . focusWS)
   ff <- gets (focusFloat . focusWS)
   fw <- fmap focusedWin $ gets focusWS
-  if (isJust ff)
+  if isJust ff
     then let ffw = fromJust ff in
       when (ffw == w) $ (focusFloat . focusWS) =: Nothing
     else do 
@@ -228,10 +232,10 @@ removeWindow w = do
       Just w' -> when (w' == w) $ do
         raiseHidden R
         fw' <- fmap focusedWin $ gets focusWS
-        when ((not $ isJust fw') && (not $ null fs))
-            $ (focusFloat . focusWS) =: (Just $ head fs) 
+        when (isNothing fw' && not  (null fs))
+            $ (focusFloat . focusWS) =: Just (head fs)
       Nothing -> return ()
-  (floats . focusWS) =. (delete w)
+  (floats . focusWS) =. delete w
   arrange >> refresh >> updateBar >> updateFocus
 
 -- | Wrapper for the common case of atom internment
@@ -268,10 +272,10 @@ getProp32s :: String -> Window -> SUN (Maybe [CLong])
 getProp32s str w = do { a <- getAtom str; getProp32 a w }
 
 -- | Common non-predefined atoms
-atom_WM_PROTOCOLS, atom_WM_DELETE_WINDOW, atom_WM_STATE :: SUN Atom
-atom_WM_PROTOCOLS       = getAtom "WM_PROTOCOLS"
-atom_WM_DELETE_WINDOW   = getAtom "WM_DELETE_WINDOW"
-atom_WM_STATE           = getAtom "WM_STATE"
+atomWMPROTOCOLS, atomWMDELETEWINDOW, atomWMSTATE :: SUN Atom
+atomWMPROTOCOLS       = getAtom "WM_PROTOCOLS"
+atomWMDELETEWINDOW   = getAtom "WM_DELETE_WINDOW"
+atomWMSTATE           = getAtom "WM_STATE"
 
 configureBarScr :: Int -> SUN ()
 configureBarScr n = do
@@ -282,7 +286,7 @@ configureBarScr n = do
       sw = fid (displayWidth dis scr)
       sh = fid (displayHeight dis scr)
   screenWidth =: sw
-  when (not $ null qt') $ do
+  unless (null qt') $ do
       bwa <- liftX $ getWindowAttributes dis (head qt')
       let bh = fid $ wa_height bwa + wa_y bwa
       barHeight =: bh
@@ -305,7 +309,7 @@ updateBar = asks (barConf . userConf) >>= \c -> do
     fwTitle <- liftX $ maybe (return Nothing) (fetchName dis) ffw
     let h = L.get handle c ; cur = L.get currentC c ; hid = L.get hiddenC c 
         hidE = L.get hiddenEmptyC c ; titC = L.get titleC c
-        wCount ws = length $ (getHidWins ws) ++ (getVisWins ws) ++ (L.get floats ws)
+        wCount ws = length $ getHidWins ws ++ getVisWins ws ++ L.get floats ws
         xmb (fgc,bgc) str = 
           "<fc=" ++ fgc ++ "," ++ bgc ++ ">" ++ " " ++ take 45 str ++ " " ++ "</fc>"
         wsF (ws,n)
@@ -313,13 +317,13 @@ updateBar = asks (barConf . userConf) >>= \c -> do
             | wCount ws == 0 = xmb hidE (wsns !! n)
             | otherwise = xmb hid (wsns !! n)
         frmtns = concatMap wsF $ zip wss [0..]
-        wTitle' = if (isJust ffw && isJust fwTitle) then (xmb titC $ fromJust fwTitle)
-                  else (maybe "" (xmb titC) wTitle)
-    vwins <- (fmap getVisWins $ gets focusWS) >>= \vws -> mapM (liftX . fetchName dis)
-             $ if ((not $ isJust ffw) && (isJust fw)) then delete (fromJust fw) vws else vws
-    hwins <- (fmap getHidWins $ gets focusWS) >>= mapM (liftX . fetchName dis)
-    fwins <- (gets (floats . focusWS)) >>= \fws -> mapM (liftX . fetchName dis)
-             $ if (isJust ffw) then delete (fromJust ffw) fws else fws
+        wTitle' = if isJust ffw && isJust fwTitle then xmb titC $ fromJust fwTitle
+                  else maybe "" (xmb titC) wTitle
+    vwins <- fmap getVisWins (gets focusWS) >>= \vws -> mapM (liftX . fetchName dis)
+             $ if isNothing ffw && isJust fw then delete (fromJust fw) vws else vws
+    hwins <- fmap getHidWins (gets focusWS) >>= mapM (liftX . fetchName dis)
+    fwins <- gets (floats . focusWS) >>= \fws -> mapM (liftX . fetchName dis)
+             $ if isJust ffw then delete (fromJust ffw) fws else fws
     let vs = map (xmb hid . fromJust) $ filter (/= Nothing) $ vwins ++ fwins
     let hs = map (xmb hidE . fromJust) $ filter (/= Nothing) hwins
     liftX $ hPutStrLn h $ filter (`elem` ['\32'..'\126']) $ frmtns 
@@ -340,19 +344,19 @@ updateFocus = do
     liftX $ clearWindow dis rt
     case ff of 
       (Just ffw) -> do
-        inFS <- gets inFullScreen
+        inFS <- gets (inFullScreen . focusWS)
         xGrabButton False ffw
         if inFS 
           then liftX $ do
-            setWindowBorderWidth dis (ffw) 0
-            moveResizeWindow dis (ffw) 0 0 sw (sh+bh)
+            setWindowBorderWidth dis ffw 0
+            moveResizeWindow dis ffw 0 0 sw (sh+bh)
           else liftX $ do
             setWindowBorderWidth dis ffw bw
             setWindowBorder dis ffw fc
-        mapM_ (xGrabButton True) $ ws ++ (delete ffw fs)
-        if (tl == [] && ws /= [])
+        mapM_ (xGrabButton True) $ ws ++ delete ffw fs
+        if tl == [] && ws /= []
           then liftX $ setWindowBorderWidth dis (head ws) 0
-          else liftX $ mapM_ unFocus $ ws ++ (delete ffw fs)
+          else liftX $ mapM_ unFocus $ ws ++ delete ffw fs
         liftX $ setInputFocus dis ffw revertToParent 0
         liftX $ raiseWindow dis ffw 
       Nothing -> do
@@ -365,30 +369,31 @@ updateFocus = do
                 liftX $ setWindowBorderWidth dis w bw
                 liftX $ setWindowBorder dis w fc
             liftX $ setInputFocus dis w revertToParent 0
-            mapM_ (xGrabButton True) $ (delete w ws) ++ fs
+            mapM_ (xGrabButton True) $ delete w ws ++ fs
             xGrabButton False w
-            liftX $ mapM_ unFocus $ (delete w ws ++ fs)
+            liftX $ mapM_ unFocus (delete w ws ++ fs)
           Nothing -> do
             liftX $ setInputFocus dis rt revertToParent 0
             when (tl /= []) drawFrameBorder
             liftX $ mapM_ unFocus $ ws ++ fs
             mapM_ (xGrabButton True) $ ws ++ fs
 
-xGrabButton :: Bool -> Window -> SUN ()                                                    
+-- | Grab or ungrab a mouse button
+xGrabButton :: Bool -> Window -> SUN ()
 xGrabButton grab w = asks display >>= \dis -> do
     nmlck <- asks numlockMask
     liftX $ if grab
-        then forM_ [button1, button2, button3] $ \b ->                                     
-               grabButton dis b anyModifier w False buttonPressMask                             
-               grabModeAsync grabModeSync none none                                
+        then forM_ [button1, button2, button3] $ \b ->
+               grabButton dis b anyModifier w False buttonPressMask
+               grabModeAsync grabModeSync none none
         else do
           ungrabButton dis anyButton anyModifier w 
           forM_ [mod1Mask, mod1Mask .|. nmlck, mod1Mask .|. lockMask
                 , mod1Mask .|. nmlck .|. lockMask] $ \m -> do
-            grabButton dis button1 m w False buttonPressMask                             
-              grabModeAsync grabModeSync none none                                
-            grabButton dis button3 m w False buttonPressMask                             
-              grabModeAsync grabModeSync none none                                
+            grabButton dis button1 m w False buttonPressMask
+              grabModeAsync grabModeSync none none
+            grabButton dis button3 m w False buttonPressMask
+              grabModeAsync grabModeSync none none
 
 -- | Draws the dashed border around a focused, empty frame.
 drawFrameBorder :: SUN ()
@@ -404,7 +409,7 @@ drawFrameBorder = do
         gc <- createGC dis rt
         setLineAttributes dis gc (fi bw) lineSolid capButt joinMiter
         setForeground dis gc fc
-        drawRectangle dis rt gc (fi x + (div (fip bw) 2)) (fi y + (div (fip bw) 2) + (fip bh)) (w-(fid bw)) (h-(fid bw))
+        drawRectangle dis rt gc (fi x + div (fip bw) 2) (fi y + div (fip bw) 2 + fip bh) (w - fid bw) (h - fid bw)
         sync dis False
         freeGC dis gc
 
@@ -415,10 +420,15 @@ getConf = do
     sh <- gets screenHeight ; rt <- asks root
     return (dis,rt,sw,sh,nc,fc,uc)
 
+getScrDims :: SUN (Dimension, Dimension)
+getScrDims = do
+    sw <- gets screenWidth
+    sh <- gets screenHeight
+    return (sw,sh)
+
 eventDispatch :: Event -> SUN ()
 
-eventDispatch !(UnmapEvent {ev_window = w, ev_send_event = synthetic}) = do
-  when synthetic (removeWindow w)
+eventDispatch !(UnmapEvent {ev_window = w, ev_send_event = synthetic}) = when synthetic (removeWindow w)
 
 eventDispatch !(MapRequestEvent {ev_window = win}) = do
     fw <- fmap focusedWin $ gets focusWS
@@ -426,7 +436,7 @@ eventDispatch !(MapRequestEvent {ev_window = win}) = do
     isF <- isFullscreen win ; isD <- isDialog win ; isS <- isSplash win
     unless (win `elem` allWins || isF || isD || isS) $ do
       when (isJust fw) $ (hidden . focusWS) =. (fromJust fw:)
-      (tree . focusWS) =. (replace (Just win))
+      (tree . focusWS) =. replace (Just win)
       (focusFloat . focusWS) =: Nothing
       arrange >> refresh >> updateFocus >> updateBar
     when (isF || isS || isD) $ float win
@@ -541,14 +551,14 @@ swap dir = do
 removeFrame :: SUN ()
 removeFrame = do
     ffw <- gets (focusFloat . focusWS)
-    when (not $ isJust ffw) $ do
+    when (isNothing ffw) $ do
       safeModify focusWS killFrame
       arrange >> refresh >> updateFocus >> updateBar
 
 focusTo :: Direction -> SUN ()
 focusTo dir = do
     ffw <- gets (focusFloat . focusWS)
-    when (not $ isJust ffw) $ do
+    when (isNothing ffw) $ do
       sw <- gets screenWidth ; sh <- gets screenHeight
       safeModify (tree . focusWS) $ changeFocus dir sw sh
       arrange >> refresh >> updateFocus >> updateBar
@@ -583,7 +593,7 @@ eventLoop = do
     eventDispatch evt
     eventLoop
 
-setMouseDrag :: (Maybe DragType) -> SUN ()
+setMouseDrag :: Maybe DragType -> SUN ()
 setMouseDrag dragType = do
     rt <- asks root ; dis <- asks display
     liftX $ grabPointer dis rt False (buttonReleaseMask .|. pointerMotionMask)        
@@ -615,8 +625,7 @@ clickFocus w = do
   tr <- gets (tree . focusWS)
   fs <- gets (floats . focusWS)
   vws <- fmap getVisWins $ gets focusWS
-  when (w `elem` fs) $ do
-    (focusFloat . focusWS) =: (Just w)
+  when (w `elem` fs) $ (focusFloat . focusWS) =: Just w
   when (w `elem` vws) $ do
     let zs = filter ((/=) Nothing . fromFrame) $ flattenToZips tr
         (Just cwz) = find ((==) (Just w) . fromFrame) zs
@@ -632,7 +641,7 @@ float w = do
   unless (w `elem` fs) $ do
     (floats . focusWS) =. (w:)
     dialog <- isDialog w
-    when (not dialog) $ focusWS =. (cycleHidden R)
+    unless dialog $ focusWS =. cycleHidden R
   arrange >> refresh >> updateFocus >> updateBar
 
 unfloat :: SUN ()
@@ -641,9 +650,9 @@ unfloat = do
   when (isJust ffw) $ do
     fw <- fmap focusedWin $ gets focusWS
     when (isJust fw) $ (hidden . focusWS) =. (fromJust fw:)
-    (tree . focusWS) =. (replace ffw)  
-    (floats . focusWS) =. (Data.List.delete (fromJust ffw))
-    (focusFloat . focusWS) =: Nothing
+    tree . focusWS =. replace ffw
+    floats . focusWS =. Data.List.delete (fromJust ffw)
+    focusFloat . focusWS =: Nothing
     arrange >> refresh >> updateFocus >> updateBar
 
 clickFocusEmptyFrame :: (Dimension, Dimension) -> SUN ()
@@ -652,22 +661,20 @@ clickFocusEmptyFrame (x,y) = do
   t <- gets (tree . focusWS)
   let zs = filter ((==) Nothing . fromFrame . snd) $ flatten t sw sh
       cwz = find (isInRectangle (x,y) . fst) zs
-  when (isJust cwz) $ (tree . focusWS) =: (snd $ fromJust cwz)
+  when (isJust cwz) $ (tree . focusWS) =: snd (fromJust cwz)
   arrange >> refresh >> updateFocus >> updateBar
- where isInRectangle (x,y) (rx,ry,rw,rh) = 
-        (x > rx) && (x < (rx+rw)) && (y > ry) && (y < (ry + rh))
+ where isInRectangle (x',y') (rx,ry,rw,rh) =
+        (x' > rx) && (x' < (rx+rw)) && (y' > ry) && (y' < (ry + rh))
 
 toggleFullScreen :: SUN ()
 toggleFullScreen = do
-  uc <- asks userConf
   ffw <- gets (focusFloat . focusWS)
   fw <- fmap focusedWin $ gets focusWS
-  when ((not $ isJust ffw) && isJust fw) $ do
+  when (isNothing ffw && isJust fw) $ do
     float $ fromJust fw
-    inFullScreen =: True
-    let bw = L.get borderWidth uc
+    (inFullScreen . focusWS) =: True
     arrange >> refresh >> updateFocus >> updateBar
   when (isJust ffw) $ do
     unfloat
-    inFullScreen =: False
+    (inFullScreen . focusWS) =: False
     arrange >> refresh >> updateFocus >> updateBar
