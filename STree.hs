@@ -84,6 +84,7 @@ emptyFrame = Frame Nothing
 emptyZipper :: SUNZipper
 emptyZipper = SZ emptyFrame []
 
+-- | An empty default workspace
 emptyWS :: WorkSpace
 emptyWS = WorkSpace emptyZipper [] [] Nothing False
 
@@ -114,19 +115,23 @@ doSplit splitFunc !ws = updateHidden $ modify tree splitFunc ws
                 $ set hidden (tail hws) ws'
           | otherwise = ws'
 
+-- | Returns True if a Frame is focused, rather than a Split
 isFrame :: SUNZipper -> Bool
 isFrame !(SZ (Frame _) _) = True
 isFrame !_ = False
 
+-- | Move up a tree
 up :: SUNZipper -> SUNZipper
 up sz@(SZ _ []) = sz
 up (SZ t (LU st rd:ps)) = SZ (Split st t rd) ps
 up (SZ t (RD st lu:ps)) = SZ (Split st lu t) ps
 
+-- | Return to the top of the SUNZipper
 top :: SUNZipper -> SUNZipper
 top !sz | null $ get trail sz = sz
         | otherwise = top $ up sz
 
+-- | Move left/right down a tree
 traverse :: (SUNZipper -> SUNZipper) -> SUNZipper -> SUNZipper
 traverse leftOrRight !sz
     | isFrame sz = sz
@@ -177,6 +182,8 @@ trailMap !tr = trailMap' tr []
 followTrailMap :: [SUNZipper -> SUNZipper] -> SUNZipper -> SUNZipper
 followTrailMap tm !sz = Prelude.foldl (\sz' tf -> tf sz') sz tm
 
+-- | 'flatten' is the core function of the window manager, calculating the size
+-- of the windows themselves
 flatten :: (Integral t1, Integral t) => SUNZipper -> t -> t1 -> [((t, t1, t, t1), SUNZipper)]
 flatten !szip wth hgt = flatten' (top szip) (0,0,wth,hgt)
   where flatten' sz@(SZ (Frame _) _) dims = [(dims,sz)]
@@ -188,21 +195,6 @@ flatten !szip wth hgt = flatten' (top szip) (0,0,wth,hgt)
           let luDim = (x,y,w,r.*.h)
               rdDim = (x,y+(r.*.h),w,h-(r.*.h))
           in flatten' (left sz) luDim ++ flatten' (right sz) rdDim
-
-(.*.) :: Integral a => SplitRatio -> a -> a
-(.*.) a b = round $ a * fi b
-
-fi :: (Integral a, Num b) => a -> b
-fi = fromIntegral
-
-fir :: Integral a => a -> SplitRatio
-fir x = fromIntegral x :: SplitRatio
-
-fip :: Integral a => a -> Position
-fip x = fromIntegral x :: Position
-
-fid :: Integral a => a -> Dimension
-fid x = fromIntegral x :: Dimension
 
 flattenToDimWins :: Dimension -> Dimension -> SUNZipper 
                     -> [((Position, Position, Dimension, Dimension), Window)]
@@ -225,6 +217,22 @@ flattenToZips !sz = flattenToZips' $ top sz
         flattenToZips' sz'@(SZ (Frame (Just _)) _) = [sz']
         flattenToZips' !sz' = flattenToZips' (left sz') ++ flattenToZips' (right sz')
 
+(.*.) :: Integral a => SplitRatio -> a -> a
+(.*.) a b = round $ a * fi b
+
+fi :: (Integral a, Num b) => a -> b
+fi = fromIntegral
+
+fir :: Integral a => a -> SplitRatio
+fir x = fromIntegral x :: SplitRatio
+
+fip :: Integral a => a -> Position
+fip x = fromIntegral x :: Position
+
+fid :: Integral a => a -> Dimension
+fid x = fromIntegral x :: Dimension
+
+-- | Searches for the windows 'closest' to the specified direction
 changeFocus :: Integral n => Direction -> n -> n -> SUNZipper -> SUNZipper
 changeFocus dir scrw scrh !sz =
   let ts = flatten sz scrw scrh
@@ -317,6 +325,7 @@ annihilateWin w !ss
            $ modify workspaces (map (destroyWin w)) 
            $ updateWorkspace ss
 
+-- | Returns all non-floating (hidden or visible) windows on all desktops
 getAllWins :: SUNState -> [Window]
 getAllWins !ss = concatMap (\ws -> getHidWins ws ++ getVisWins ws) 
                  $ get workspaces $ updateWorkspace ss
@@ -346,6 +355,7 @@ flipTree !sz = let tsz = trailMap $ get trail sz
         flipIt (Split (V ra) l r) = Split (H ra) (flipIt l) (flipIt r)
         flipIt f@(Frame _) = f
 
+-- | Create a 'blank' initial SUNState
 initState :: Int -> SUNState
 initState !nw = SUNState w 1 ws False Nothing 0 0 0
     where ws@(w:_) = replicate nw emptyWS

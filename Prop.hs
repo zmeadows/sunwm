@@ -17,14 +17,12 @@
   along with sunWM.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-import Test.QuickCheck
 import STree
-import Graphics.X11.Types (Window)
-
+import Test.QuickCheck
 import Control.Category
 import Prelude hiding ((.), id)
 import Data.Label
-import Data.List
+import Data.Maybe (isNothing)
 
 instance Arbitrary SUNState where
   arbitrary = do
@@ -50,19 +48,24 @@ treeOps = map (modify (tree . focusWS)) $
   replicate 2 flipTree ++
   replicate 2 makeEqual
 
+wsOps :: [SUNState -> SUNState]
 wsOps = map (modify focusWS) $
   replicate 10 (cycleHidden R) ++
   replicate 10 (cycleHidden L)
 
+ssOps :: [SUNState -> SUNState]
 ssOps = map moveToWS [1..9] ++ map changeWorkspace [1..9]
 
+emptyState :: SUNState
 emptyState = initState 9
 
+intertwine :: [a] -> [a] -> [a]
 intertwine a b = intertwine' a b []
 intertwine' [] _ c = c
 intertwine' _ [] c = c
 intertwine' (a:as) (b:bs) c = intertwine' as bs (a:b:c)
 
+applyOps :: SUNState -> [SUNState -> SUNState] -> SUNState
 applyOps = foldl (flip modifySafe)
 
 modifySafe :: (SUNState -> SUNState) -> SUNState -> SUNState
@@ -72,27 +75,30 @@ modifySafe sf ss
   where ss' = sf ss
         notTooSmall (_,_,w,h) = w > 50 && h > 50
 
-prop_resizeUD ss = property $ 
-    if ssR == ss then True
-    else (modify (tree . focusWS) (STree.resize D 0.02) ssR) == ss
+prop_resizeUD :: SUNState -> Property
+prop_resizeUD ss = property
+    ((ssR == ss) || modify (tree . focusWS) (STree.resize D 0.02) ssR == ss)
   where ssR = modifySafe (modify (tree . focusWS) (STree.resize U 0.02)) ss
 
-prop_resizeLR ss = property $ 
-    if ssR == ss then True
-    else (modify (tree . focusWS) (STree.resize R 0.02) ssR) == ss
+prop_resizeLR :: SUNState -> Property
+prop_resizeLR ss = property
+    ((ssR == ss) || modify (tree . focusWS) (STree.resize R 0.02) ssR == ss)
   where ssR = modifySafe (modify (tree . focusWS) (STree.resize L 0.02)) ss
 
-prop_wsChange ss = property $ changeWorkspace fwsn ss' == (updateWorkspace ss)
+prop_wsChange :: SUNState -> Property
+prop_wsChange ss = property $ changeWorkspace fwsn ss' == updateWorkspace ss
   where fwsn = get focusWSNum ss
         ss' = applyOps ss (map changeWorkspace [1..9])
 
+prop_moveWinAround :: SUNState -> Bool
 prop_moveWinAround ss
-  | (fromFrame $ get (tree . focusWS) ss) == Nothing = True
+  | isNothing (fromFrame $ get (tree . focusWS) ss) = True
   | otherwise =  all (== updateWorkspace ss) $ map trip [1..9]
   where trip nwsn = changeWorkspace fwsn $ moveToWS fwsn 
                     $ changeWorkspace nwsn $ moveToWS nwsn ss
         fwsn = get focusWSNum ss
 
+prop_splitUnsplitV :: SUNState -> Bool
 prop_splitUnsplitV ss
   | ss' == ss = True
   | otherwise = ss'' == ss
@@ -100,6 +106,7 @@ prop_splitUnsplitV ss
         ss'' = modify focusWS killFrame 
                $ modify (tree . focusWS) (changeFocus R 1280 800) ss'
 
+prop_splitUnsplitH :: SUNState -> Bool
 prop_splitUnsplitH ss
   | ss' == ss = True
   | otherwise = ss'' == ss
@@ -107,19 +114,23 @@ prop_splitUnsplitH ss
         ss'' = modify focusWS killFrame 
                $ modify (tree . focusWS) (changeFocus D 1280 800) ss'
 
+prop_followTrailBack :: SUNState -> Bool
 prop_followTrailBack ss = t == followTrailMap tMap (top t)
   where t = get (tree . focusWS) ss
         tMap = trailMap $ get trail t
 
-prop_doubleFlip ss = (flipTree $ flipTree t) == t
+prop_doubleFlip :: SUNState -> Bool
+prop_doubleFlip ss = flipTree (flipTree t) == t
   where t = get (tree . focusWS) ss
 
+prop_doubleCycleHidden :: SUNState -> Bool
 prop_doubleCycleHidden ss 
-  | (focusedWin $ get focusWS ss) == Nothing = True
-  | otherwise = ((cycleHidden R $ cycleHidden L ws) == ws)
-             && ((cycleHidden L $ cycleHidden R ws) == ws)
+  | isNothing (focusedWin $ get focusWS ss) = True
+  | otherwise = cycleHidden R (cycleHidden L ws) == ws
+             && (cycleHidden L (cycleHidden R ws) == ws)
   where ws = get focusWS ss
 
+prop_deleteAllWins :: SUNState -> Bool
 prop_deleteAllWins ss = null a
   where ss' = updateWorkspace ss
         aws = getAllWins ss'

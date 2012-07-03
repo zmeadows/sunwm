@@ -135,6 +135,7 @@ arrange = asks display >>= \dis -> do
     when (length ws == 1 && L.get trail t == [])
       $ liftX $ moveResizeWindow dis (snd $ head ws) 0 bh sw sh
 
+-- | Resizes frame in a specific direction
 resizeFrame :: Direction -> SplitRatio -> SUN ()
 resizeFrame dir dr = gets (trail . tree . focusWS) >>= \t ->
   when (t /= []) $ do
@@ -158,7 +159,7 @@ raiseHidden dir = do
   unless ff $ do
     focusWS =. cycleHidden dir
     arrange >> refresh >> updateFocus >> updateBar
- 
+
 -- | Used for when you want to apply a function to the whole state at once.
 -- i.e. function with type signature (SUNState -> SUNState)
 modifyState :: MonadState s m => (s -> s) -> m ()
@@ -177,7 +178,11 @@ refresh = asks display >>= \dis -> do
     modifyState updateWorkspace
     vws <- fmap getVisWins $ gets focusWS ; aws <- stateFunc getAllWins
     fs <- gets (floats . focusWS) ; afs <- fmap (map (L.get floats)) $ gets workspaces
+    rt <- asks root
     liftX $ mapM_ (mapWindow dis) $ vws ++ fs ; liftX $ mapM_ (unmapWindow dis) $ (aws \\ vws) ++ (concat afs \\ fs)
+    (_,_,qt) <- liftX $ queryTree dis rt
+    let killGhostWins win = if (not $ win `elem` qt) then removeWindow win else return ()
+    mapM_ killGhostWins aws
 
 -- | Switch to another workspace
 changeWS :: Int -> SUN ()
@@ -192,12 +197,14 @@ runSUN (SUN a) !st !c = evalStateT (runReaderT a c) st
 banish :: SUN ()
 banish = do
     dis <- asks display ; rt <- asks root ; bh <- fmap fip $ gets barHeight
-    sw <- gets screenWidth ; sh <- gets screenHeight
+    (sw,sh) <- getScrDims
     liftX $ warpPointer dis none rt 0 0 0 0 (fi sw) $ fi sh + bh
 
+-- | Make all split ratios in the tree 0.5
 equalize :: SUN ()
 equalize = safeModify (tree . focusWS) makeEqual >> arrange
 
+-- | Rotate current layout by 90 degrees
 flipT :: SUN ()
 flipT = safeModify (tree . focusWS) flipTree >> arrange >> refresh >> updateFocus
 
@@ -218,6 +225,8 @@ killWindow = asks display >>= \dis -> do
            sendEvent dis w False noEventMask ev
       else void (killClient dis w)
 
+-- | Kills the current window (floating or not) and
+-- removes all traces of it from SUNState
 removeWindow :: Window -> SUN ()
 removeWindow w = do
   fs <- gets (floats . focusWS)
@@ -242,6 +251,7 @@ removeWindow w = do
 getAtom :: String -> SUN Atom
 getAtom str = asks display >>= \dis -> liftX $ internAtom dis str False
 
+-- | Checks if a window has a certain property
 isInProperty :: String -> String -> Window -> SUN Bool
 isInProperty p v w = do
     va <- getAtom v
@@ -250,7 +260,7 @@ isInProperty p v w = do
         Just xs -> fromIntegral va `elem` xs
         _ -> False
 
--- | Returns true if the window labels itself as being fullscreen.
+-- | Window property analysis functions
 isFullscreen :: Window -> SUN Bool
 isFullscreen = isInProperty "_NET_WM_STATE" "_NET_WM_STATE_FULLSCREEN"
 
@@ -277,6 +287,7 @@ atomWMPROTOCOLS       = getAtom "WM_PROTOCOLS"
 atomWMDELETEWINDOW   = getAtom "WM_DELETE_WINDOW"
 atomWMSTATE           = getAtom "WM_STATE"
 
+-- | Detects bar/screen dimensions and sets state values accordingly
 configureBarScr :: Int -> SUN ()
 configureBarScr n = do
   dis <- asks display ; rt <- asks root
@@ -291,14 +302,14 @@ configureBarScr n = do
       let bh = fid $ wa_height bwa + wa_y bwa
       barHeight =: bh
       screenHeight =: sh - bh
-  when (null qt' && n < 10) $ do
+  when (null qt' && n < 20) $ do
       liftX $ threadDelay 100000
       configureBarScr (n+1)
-  when (null qt' && n >= 10) $ do
+  when (null qt' && n >= 20) $ do
       barHeight =: 0
       screenHeight =: sh
 
--- | Sends formated workspace boxes and window names to stdin of xmobar. 
+-- | Sends formated workspace boxes and window names to stdin of xmobar.
 updateBar :: SUN ()
 updateBar = asks (barConf . userConf) >>= \c -> do
     modifyState updateWorkspace ; dis <- asks display
@@ -420,12 +431,14 @@ getConf = do
     sh <- gets screenHeight ; rt <- asks root
     return (dis,rt,sw,sh,nc,fc,uc)
 
+-- | Return the screen dimensions
 getScrDims :: SUN (Dimension, Dimension)
 getScrDims = do
     sw <- gets screenWidth
     sh <- gets screenHeight
     return (sw,sh)
 
+-- | Dispatch X11 events based on their type
 eventDispatch :: Event -> SUN ()
 
 eventDispatch !(UnmapEvent {ev_window = w, ev_send_event = synthetic}) = when synthetic (removeWindow w)
@@ -471,7 +484,6 @@ eventDispatch !(ButtonEvent {ev_event_type = t})
           liftX $ ungrabPointer dis currentTime
           dragging =: Nothing
         Nothing -> return ()
-
 
 eventDispatch !(DestroyWindowEvent {ev_window = w}) = removeWindow w
 
@@ -535,6 +547,7 @@ grabPrefixTops = do
     p' <- liftX $ toKeyCode p
     liftX $ xGrabKey p' >> mapM_ xGrabKey keys'
 
+-- | Kill Xorg
 quit :: SUN ()
 quit = liftX exitSuccess
 
@@ -596,8 +609,8 @@ eventLoop = do
 setMouseDrag :: Maybe DragType -> SUN ()
 setMouseDrag dragType = do
     rt <- asks root ; dis <- asks display
-    liftX $ grabPointer dis rt False (buttonReleaseMask .|. pointerMotionMask)        
-            grabModeAsync grabModeAsync none none currentTime                      
+    liftX $ grabPointer dis rt False (buttonReleaseMask .|. pointerMotionMask)
+            grabModeAsync grabModeAsync none none currentTime
     dragging =: dragType
 
 -- | Strip numlock && capslock from a mask
@@ -620,6 +633,7 @@ mouseResize w = asks display >>= \dis -> do
   liftX $ warpPointer dis none w 0 0 0 0 (fip (wa_width wa)) (fip (wa_height wa))
   setMouseDrag $ Just (Resize w (fid $ wa_x wa) (fid $ wa_y wa))
 
+-- | Click-to-focus floating or tiled windows
 clickFocus :: Window -> SUN ()
 clickFocus w = do
   tr <- gets (tree . focusWS)
@@ -633,6 +647,7 @@ clickFocus w = do
     (focusFloat . focusWS) =: Nothing
   updateFocus >> updateBar
 
+-- | Float the currently focused window
 float :: Window -> SUN ()
 float w = do
   modifyState (annihilateWin w)
@@ -644,6 +659,7 @@ float w = do
     unless dialog $ focusWS =. cycleHidden R
   arrange >> refresh >> updateFocus >> updateBar
 
+-- | Unfloat the currently focused window and place it in the tree
 unfloat :: SUN ()
 unfloat = do
   ffw <- gets (focusFloat . focusWS)
@@ -655,9 +671,10 @@ unfloat = do
     focusFloat . focusWS =: Nothing
     arrange >> refresh >> updateFocus >> updateBar
 
+-- | Takes care of click-to-focus for empty frames
 clickFocusEmptyFrame :: (Dimension, Dimension) -> SUN ()
 clickFocusEmptyFrame (x,y) = do
-  sw <- gets screenWidth ; sh <- gets screenHeight    
+  sw <- gets screenWidth ; sh <- gets screenHeight
   t <- gets (tree . focusWS)
   let zs = filter ((==) Nothing . fromFrame . snd) $ flatten t sw sh
       cwz = find (isInRectangle (x,y) . fst) zs
@@ -666,6 +683,7 @@ clickFocusEmptyFrame (x,y) = do
  where isInRectangle (x',y') (rx,ry,rw,rh) =
         (x' > rx) && (x' < (rx+rw)) && (y' > ry) && (y' < (ry + rh))
 
+-- | Toggle the current workspace to fullscreen and back
 toggleFullScreen :: SUN ()
 toggleFullScreen = do
   ffw <- gets (focusFloat . focusWS)

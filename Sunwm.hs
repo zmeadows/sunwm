@@ -26,12 +26,14 @@ import Data.Bits
 import System.IO
 import qualified Data.Map as M
 
+myBarConf :: Handle -> XMobarConf
 myBarConf = XMobarConf 
   ("#efefef", "#729fcf") -- focusWS
   ("#efefef", "#222222") -- hiddenWS
   ("#8f8f8f", "#222222") -- emptyHiddenWS
   ("#efefef", "#222222") -- activeWinTitle
 
+main :: IO ()
 main = do
     h <- spawnPipe "xmobar"
     sunwm $ defaultConfig h
@@ -41,12 +43,12 @@ defaultConfig h = UserConf
       "rgb:4f/4f/4f"     -- Normal Border Color
       "rgb:72/9f/cf"     -- Focused Border Color
       1                  -- Border Width
-      defaultKeys
-      defaultTopKeys
+      defaultKeys        -- Don't change this
+      defaultTopKeys     -- Don't change this
       (map show [1..9])  -- Workspace Names (list of strings)
-      (0, xK_F13) -- Prefix Key
-      (myBarConf h) 
-      "urxvt256c +sb"            -- Terminal Command
+      (0, xK_F13)        -- Prefix Key
+      (myBarConf h)      -- Don't change this
+      "urxvt256c +sb"    -- Terminal Command
 
 defaultKeys :: M.Map (KeyMask, KeySym) (SUN ())
 defaultKeys = M.fromList

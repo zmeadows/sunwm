@@ -78,4 +78,3 @@ spawnPipe x = do
         dupTo rd stdInput
         executeFile "/bin/sh" False ["-c", x] Nothing
     return h
-
