@@ -302,10 +302,10 @@ configureBarScr n = do
       let bh = fid $ wa_height bwa + wa_y bwa
       barHeight =: bh
       screenHeight =: sh - bh
-  when (null qt' && n < 20) $ do
+  when (null qt' && n < 70) $ do
       liftX $ threadDelay 100000
       configureBarScr (n+1)
-  when (null qt' && n >= 20) $ do
+  when (null qt' && n >= 70) $ do
       barHeight =: 0
       screenHeight =: sh
 
