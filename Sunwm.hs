@@ -36,7 +36,8 @@ myBarConf = XMobarConf
 main :: IO ()
 main = do
     h <- spawnPipe "xmobar"
-    sunwm $ defaultConfig h
+    e <- sunwm $ defaultConfig h
+    return ()
 
 defaultConfig :: Handle -> UserConf
 defaultConfig h = UserConf
@@ -91,6 +92,8 @@ defaultTopKeys = M.fromList
     , ((mod1Mask, xK_7), changeWS 7)
     , ((mod1Mask, xK_8), changeWS 8)
     , ((mod1Mask, xK_9), changeWS 9)
+    , ((mod1Mask, xK_Left), moveLeftWS)
+    , ((mod1Mask, xK_Right), moveRightWS)
     , ((mod1Mask .|. shiftMask, xK_1), moveWinToWS 1)
     , ((mod1Mask .|. shiftMask, xK_2), moveWinToWS 2)
     , ((mod1Mask .|. shiftMask, xK_3), moveWinToWS 3)

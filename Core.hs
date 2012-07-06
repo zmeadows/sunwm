@@ -29,6 +29,7 @@ import Foreign.C.Types (CLong)
 
 import Control.Monad.State hiding (gets)
 import Control.Monad.Reader hiding (asks)
+import Control.Monad.Error
 import Data.Bits
 import Data.List (delete, (\\), find, intercalate)
 import Data.Maybe (fromMaybe, fromJust, isNothing, isJust)
@@ -43,7 +44,7 @@ import Data.Label.PureM as P
 import System.IO
 import System.Exit
 
-newtype SUN a = SUN (ReaderT SUNConf (StateT SUNState IO) a)
+newtype SUN a = SUN (ErrorT String (ReaderT SUNConf (StateT SUNState IO)) a)
     deriving (Monad, MonadPlus, MonadIO, MonadState SUNState, MonadReader SUNConf, Functor)
 
 data SUNConf = SUNConf
@@ -144,6 +145,8 @@ resizeFrame dir dr = gets (trail . tree . focusWS) >>= \t ->
 
 -- | Make sure a function that modifies state meets certain criteria before
 -- actually applying it.  (ex: doesn't create exceedingly small windows)
+-- Basically, this prevents the user from doing stupid things.
+-- TODO: Think of more criteria to add here (need more beta testers!)
 safeModify :: (SUNState :-> a) -> (a -> a) -> SUN ()
 safeModify lns f = do
     ss' <- stateFunc (L.modify lns f)
@@ -181,7 +184,7 @@ refresh = asks display >>= \dis -> do
     rt <- asks root
     liftX $ mapM_ (mapWindow dis) $ vws ++ fs ; liftX $ mapM_ (unmapWindow dis) $ (aws \\ vws) ++ (concat afs \\ fs)
     (_,_,qt) <- liftX $ queryTree dis rt
-    let killGhostWins win = if (not $ win `elem` qt) then removeWindow win else return ()
+    let killGhostWins win = when (win `notElem` qt) $ removeWindow win
     mapM_ killGhostWins aws
 
 -- | Switch to another workspace
@@ -190,8 +193,24 @@ changeWS wsn = gets focusWSNum >>= \fwsn -> do
     when (fwsn /= wsn) $ modifyState (changeWorkspace wsn)
     refresh >> arrange >> updateBar >> updateFocus
 
-runSUN :: SUN a -> SUNState -> SUNConf -> IO a
-runSUN (SUN a) !st !c = evalStateT (runReaderT a c) st
+moveLeftWS :: SUN ()
+moveLeftWS = do
+  fwsn <- gets focusWSNum
+  nws <- fmap length $ gets workspaces
+  if fwsn == 1
+    then changeWS nws
+    else changeWS (fwsn - 1)
+ 
+moveRightWS :: SUN ()
+moveRightWS = do
+  fwsn <- gets focusWSNum
+  nws <- fmap length $ gets workspaces
+  if fwsn == nws
+    then changeWS 1
+    else changeWS (fwsn + 1)
+
+runSUN :: SUN a -> SUNState -> SUNConf -> IO (Either String a)
+runSUN (SUN a) !st !c = evalStateT (runReaderT (runErrorT a) c) st
 
 -- | Move mouse to far bottom right corner of screen.
 banish :: SUN ()
@@ -232,6 +251,7 @@ removeWindow w = do
   fs <- gets (floats . focusWS)
   ff <- gets (focusFloat . focusWS)
   fw <- fmap focusedWin $ gets focusWS
+  inF <- gets (inFullScreen . focusWS)
   if isJust ff
     then let ffw = fromJust ff in
       when (ffw == w) $ (focusFloat . focusWS) =: Nothing
@@ -245,6 +265,7 @@ removeWindow w = do
             $ (focusFloat . focusWS) =: Just (head fs)
       Nothing -> return ()
   (floats . focusWS) =. delete w
+  when inF $ (inFullScreen . focusWS) =: False
   arrange >> refresh >> updateBar >> updateFocus
 
 -- | Wrapper for the common case of atom internment
@@ -310,6 +331,7 @@ configureBarScr n = do
       screenHeight =: sh
 
 -- | Sends formated workspace boxes and window names to stdin of xmobar.
+-- TODO: Break this up into multiple functions... it is too dense!
 updateBar :: SUN ()
 updateBar = asks (barConf . userConf) >>= \c -> do
     modifyState updateWorkspace ; dis <- asks display
@@ -341,6 +363,7 @@ updateBar = asks (barConf . userConf) >>= \c -> do
             ++ " " ++ wTitle' ++ " " ++ intercalate "|" (vs ++ hs)
 
 -- | Update the focused window, redraw borders accordingly on all mapped windows.
+-- TODO: Clean this beast up
 updateFocus :: SUN ()
 updateFocus = do
     (dis,rt,sw,sh,nc,fc,uc) <- getConf
@@ -356,8 +379,9 @@ updateFocus = do
     case ff of 
       (Just ffw) -> do
         inFS <- gets (inFullScreen . focusWS)
+        isFS <- isFullscreen ffw
         xGrabButton False ffw
-        if inFS 
+        if inFS || isFS
           then liftX $ do
             setWindowBorderWidth dis ffw 0
             moveResizeWindow dis ffw 0 0 sw (sh+bh)
@@ -406,7 +430,7 @@ xGrabButton grab w = asks display >>= \dis -> do
             grabButton dis button3 m w False buttonPressMask
               grabModeAsync grabModeSync none none
 
--- | Draws the dashed border around a focused, empty frame.
+-- | Draws the border around a focused, empty frame.
 drawFrameBorder :: SUN ()
 drawFrameBorder = do
     (dis,rt,sw,sh,_,fc,uc) <- getConf
@@ -431,7 +455,7 @@ getConf = do
     sh <- gets screenHeight ; rt <- asks root
     return (dis,rt,sw,sh,nc,fc,uc)
 
--- | Return the screen dimensions
+-- | Return the screen dimensions (width, height)
 getScrDims :: SUN (Dimension, Dimension)
 getScrDims = do
     sw <- gets screenWidth
@@ -588,7 +612,7 @@ dmenu fn nb nf sb sf = spawn $ concat
       , "-fn '" ++ fn ++ "' "]
 
 -- | Entry point.
-sunwm :: UserConf -> IO ()
+sunwm :: UserConf -> IO (Either String ())
 sunwm !uc = setup uc >>= runSUN 
     (grabPrefixTops >> updateBar >> configureBarScr 0 >> eventLoop) st
   where st = initState $ length $ L.get wsNames uc
@@ -596,15 +620,13 @@ sunwm !uc = setup uc >>= runSUN
 -- | Core function of the whole window manager.  Recieves the events
 -- and sends them to eventDispatch.
 eventLoop :: SUN ()
-eventLoop = do
-    dis <- asks display
+eventLoop = forever $ asks display >>= \dis -> do
     evt <- liftX $ do
       sync dis False
       allocaXEvent $ \evtpnt -> do
-      nextEvent dis evtpnt
-      getEvent evtpnt
+        nextEvent dis evtpnt
+        getEvent evtpnt
     eventDispatch evt
-    eventLoop
 
 setMouseDrag :: Maybe DragType -> SUN ()
 setMouseDrag dragType = do
