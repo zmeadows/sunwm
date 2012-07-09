@@ -92,7 +92,6 @@ defaultTopKeys = M.fromList
     , ((mod1Mask, xK_6), changeWS 6)
     , ((mod1Mask, xK_7), changeWS 7)
     , ((mod1Mask, xK_8), changeWS 8)
-    , ((mod1Mask, xK_9), changeWS 9)
     , ((mod1Mask, xK_Left), moveLeftWS)
     , ((mod1Mask, xK_Right), moveRightWS)
     , ((mod1Mask, xK_Tab), toggleWS)
