@@ -46,7 +46,7 @@ defaultConfig h = UserConf
       1                  -- Border Width
       defaultKeys        -- Don't change this
       defaultTopKeys     -- Don't change this
-      (map show [1..9])  -- Workspace Names (list of strings)
+      ["web","comm","code1","code2","code3","mus","misc1","misc2"]  -- Workspace Names (list of strings)
       (0, xK_F13)        -- Prefix Key
       (myBarConf h)      -- Don't change this
       "urxvt256c +sb"    -- Terminal Command

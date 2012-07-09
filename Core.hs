@@ -713,8 +713,7 @@ toggleFullScreen = do
   when (isNothing ffw && isJust fw) $ do
     float $ fromJust fw
     (inFullScreen . focusWS) =: True
-    arrange >> refresh >> updateFocus >> updateBar
   when (isJust ffw) $ do
     unfloat
     (inFullScreen . focusWS) =: False
-    arrange >> refresh >> updateFocus >> updateBar
+  arrange >> refresh >> updateFocus >> updateBar
