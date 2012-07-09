@@ -56,6 +56,7 @@ data SUNState = SUNState
     , _barHeight    :: !Dimension
     , _screenWidth  :: !Dimension
     , _screenHeight :: !Dimension
+    , _lastWS       :: Int
     } deriving (Show, Eq)
 
 data WorkSpace = WorkSpace
@@ -357,7 +358,7 @@ flipTree !sz = let tsz = trailMap $ get trail sz
 
 -- | Create a 'blank' initial SUNState
 initState :: Int -> SUNState
-initState !nw = SUNState w 1 ws False Nothing 0 0 0
+initState !nw = SUNState w 1 ws False Nothing 0 0 0 1
     where ws@(w:_) = replicate nw emptyWS
 
 focusedWin :: WorkSpace -> Maybe Window

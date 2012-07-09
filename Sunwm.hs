@@ -37,6 +37,7 @@ main :: IO ()
 main = do
     h <- spawnPipe "xmobar"
     e <- sunwm $ defaultConfig h
+    print e
     return ()
 
 defaultConfig :: Handle -> UserConf
@@ -46,7 +47,7 @@ defaultConfig h = UserConf
       1                  -- Border Width
       defaultKeys        -- Don't change this
       defaultTopKeys     -- Don't change this
-      ["web","comm","code1","code2","code3","mus","misc1","misc2"]  -- Workspace Names (list of strings)
+      ["web","comm","code1","code2","code3","mus","misc1","misc2"]  -- Workspace Names
       (0, xK_F13)        -- Prefix Key
       (myBarConf h)      -- Don't change this
       "urxvt256c +sb"    -- Terminal Command
@@ -94,6 +95,7 @@ defaultTopKeys = M.fromList
     , ((mod1Mask, xK_9), changeWS 9)
     , ((mod1Mask, xK_Left), moveLeftWS)
     , ((mod1Mask, xK_Right), moveRightWS)
+    , ((mod1Mask, xK_Tab), toggleWS)
     , ((mod1Mask .|. shiftMask, xK_1), moveWinToWS 1)
     , ((mod1Mask .|. shiftMask, xK_2), moveWinToWS 2)
     , ((mod1Mask .|. shiftMask, xK_3), moveWinToWS 3)

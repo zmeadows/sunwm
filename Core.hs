@@ -182,7 +182,8 @@ refresh = asks display >>= \dis -> do
     vws <- fmap getVisWins $ gets focusWS ; aws <- stateFunc getAllWins
     fs <- gets (floats . focusWS) ; afs <- fmap (map (L.get floats)) $ gets workspaces
     rt <- asks root
-    liftX $ mapM_ (mapWindow dis) $ vws ++ fs ; liftX $ mapM_ (unmapWindow dis) $ (aws \\ vws) ++ (concat afs \\ fs)
+    liftX $ mapM_ (mapWindow dis) $ vws ++ fs
+    liftX $ mapM_ (unmapWindow dis) $ (aws \\ vws) ++ (concat afs \\ fs)
     (_,_,qt) <- liftX $ queryTree dis rt
     let killGhostWins win = when (win `notElem` qt) $ removeWindow win
     mapM_ killGhostWins aws
@@ -190,8 +191,13 @@ refresh = asks display >>= \dis -> do
 -- | Switch to another workspace
 changeWS :: Int -> SUN ()
 changeWS wsn = gets focusWSNum >>= \fwsn -> do
-    when (fwsn /= wsn) $ modifyState (changeWorkspace wsn)
+    when (fwsn /= wsn) $ do
+      modifyState (changeWorkspace wsn)
+      lastWS =: fwsn
     refresh >> arrange >> updateBar >> updateFocus
+
+toggleWS :: SUN ()
+toggleWS = gets lastWS >>= changeWS
 
 moveLeftWS :: SUN ()
 moveLeftWS = do
@@ -200,7 +206,7 @@ moveLeftWS = do
   if fwsn == 1
     then changeWS nws
     else changeWS (fwsn - 1)
- 
+
 moveRightWS :: SUN ()
 moveRightWS = do
   fwsn <- gets focusWSNum
