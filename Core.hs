@@ -592,7 +592,7 @@ eventDispatch !evt@(KeyEvent {ev_event_type = et}) = when (et == keyPress) $ do
     ks <- liftX $ keycodeToKeysym dis kc 0
     when ((km,ks) == p && not inP) $ do
       inPrefix =: True
-      cur <- makeCursor xC_cross_reverse
+      cur <- makeCursor xC_rtl_logo
       liftX $ grabPointer dis rt False 0 grabModeAsync grabModeAsync none cur currentTime
       liftX $ grabKeyboard dis rt True grabModeAsync grabModeAsync currentTime
       liftX $ freeCursor dis cur

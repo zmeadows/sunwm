@@ -34,24 +34,23 @@ myBarConf = XMobarConf
   ("#efefef", "#222222") -- activeWinTitle
 
 main :: IO ()
-main = do
-    h <- spawnPipe "xmobar"
-    e <- sunwm $ defaultConfig h
-    print e
-    return ()
+main = spawnPipe "xmobar" >>= (sunwm . defaultConfig) >>= print
+
+workspaceNames:: [String]
+workspaceNames = ["web","comm","code1","code2","code3","mus","misc1","misc2"]
 
 defaultConfig :: Handle -> UserConf
 defaultConfig h = UserConf
       "rgb:4f/4f/4f"     -- Normal Border Color
       "rgb:72/9f/cf"     -- Focused Border Color
       1                  -- Border Width
-      defaultKeys        -- Don't change this
-      defaultTopKeys     -- Don't change this
-      ["web","comm","code1","code2","code3","mus","misc1","misc2"]  -- Workspace Names
+      defaultKeys        -- Prefix Key Binds
+      defaultTopKeys     -- Top Level Key Binds
+      workspaceNames     -- Self explanatory
       (0, xK_F13)        -- Prefix Key
-      (myBarConf h)      -- Don't change this
+      (myBarConf h)      -- Xmobar Configuration
       "urxvt256c +sb"    -- Terminal Command
-      50                 -- Max # of undos to store
+      15                 -- Max # of undos to store
 
 defaultKeys :: M.Map (KeyMask, KeySym) (SUN ())
 defaultKeys = M.fromList
@@ -61,8 +60,10 @@ defaultKeys = M.fromList
     , ((0, xK_k), focusTo U)
     , ((0, xK_v), splitV 0.5 >> focusTo R)
     , ((shiftMask, xK_v), splitV 0.65 >> focusTo R)
+    , ((mod1Mask,  xK_v), splitV 0.35 >> focusTo R >> swap L)
     , ((0, xK_n), splitH 0.5 >> focusTo D)
     , ((shiftMask, xK_n), splitH 0.65 >> focusTo D)
+    , ((mod1Mask,  xK_n), splitH 0.35 >> focusTo D >> swap U)
     , ((0, xK_p),  dmenu "-*-terminus-medium-*-*-*-14-*-*-*-*-*-*-*"
                          "#222222" "#efefef" "#222222" "#729fcf")
     , ((shiftMask, xK_h), swap L)
