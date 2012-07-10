@@ -66,6 +66,7 @@ data UserConf = UserConf
     , _prefixKey     :: !(KeyMask, KeySym)
     , _barConf       :: !XMobarConf
     , _terminal      :: !String
+    , _maxUndo       :: Int
     }
 
 type XMColor = (String, String)
@@ -188,13 +189,13 @@ undo = do
   let vws = getVisWins cws
       hws = getHidWins cws
   unless (null un) $ do
-    let us@(u:_) = un
+    let (u:uss) = un
         vws' = getVisWins u
         hws' = getHidWins u
         fws = (vws ++ hws) \\ (vws' ++ hws')
         fw  = focusedWin u
     focusWS =: u
-    (undoHistory . focusWS) =: tail us
+    (undoHistory . focusWS) =: uss
     (hidden . focusWS) =. (++ fws)
     nhws <- gets (hidden . focusWS)
     when (isNothing fw && (not $ null nhws)) $ raiseHidden R
@@ -202,8 +203,9 @@ undo = do
 
 storeUndo :: SUN ()
 storeUndo = do
+  nus <- asks (maxUndo . userConf)
   cws <- gets focusWS
-  (undoHistory . focusWS) =. (cws :)
+  (undoHistory . focusWS) =. (cws :) . take 49
 
 -- | Map all windows that should be visible, unmap all window that shouldn't.
 refresh :: SUN ()
@@ -215,6 +217,7 @@ refresh = asks display >>= \dis -> do
     liftX $ mapM_ (unmapWindow dis) $ (aws \\ vws) ++ (concat afs \\ fs)
     killGhostWins
 
+-- | Remove windows from workspaces when they don't actually exist according to X11
 killGhostWins :: SUN ()
 killGhostWins = do
   dis <- asks display

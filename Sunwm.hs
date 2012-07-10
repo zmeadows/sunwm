@@ -51,6 +51,7 @@ defaultConfig h = UserConf
       (0, xK_F13)        -- Prefix Key
       (myBarConf h)      -- Don't change this
       "urxvt256c +sb"    -- Terminal Command
+      50                 -- Max # of undos to store
 
 defaultKeys :: M.Map (KeyMask, KeySym) (SUN ())
 defaultKeys = M.fromList
