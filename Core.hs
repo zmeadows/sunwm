@@ -94,33 +94,37 @@ getColor dis scr str = let cMap = defaultColormap dis scr in
 -- user-specified settings in a UserConf.
 setup :: UserConf -> IO SUNConf
 setup !uc = openDisplay [] >>= \dis -> do
-    installSignalHandlers
-    let scr = defaultScreen dis
-        rt  = defaultRootWindow dis
-    fc <- getColor dis scr $ L.get focusedBorder uc
-    nc <- getColor dis scr $ L.get normalBorder uc
-    ms <- getModifierMapping dis 
-    nmlck <- fmap (foldr (.|.) 0) $ sequence [ do
-            ks <- keycodeToKeysym dis kc 0
-            if ks == xK_Num_Lock
-              then return (setBit 0 (fromIntegral m)) 
-              else return (0 :: KeyMask)
-            | (m, kcs) <- ms, kc <- kcs, kc /= 0]
-    selectInput dis rt $  substructureRedirectMask .|. substructureNotifyMask .|. structureNotifyMask
-                          .|. buttonPressMask .|. propertyChangeMask
-    liftX $ ungrabButton dis anyButton anyModifier rt >> ungrabKey dis anyKey anyModifier rt
-    xSetErrorHandler
-    hSetBuffering stdout NoBuffering
-    sync dis False
-    return $ SUNConf dis rt uc nc fc nmlck
+  installSignalHandlers
+  let scr = defaultScreen dis
+      rt  = defaultRootWindow dis
+  fc <- getColor dis scr $ L.get focusedBorder uc
+  nc <- getColor dis scr $ L.get normalBorder uc
+  ms <- getModifierMapping dis 
+  nmlck <- fmap (foldr (.|.) 0) $ sequence [ do
+          ks <- keycodeToKeysym dis kc 0
+          if ks == xK_Num_Lock
+            then return (setBit 0 (fromIntegral m)) 
+            else return (0 :: KeyMask)
+          | (m, kcs) <- ms, kc <- kcs, kc /= 0]
+  selectInput dis rt $  substructureRedirectMask .|. substructureNotifyMask 
+                        .|. structureNotifyMask  .|. buttonPressMask
+  liftX $ ungrabButton dis anyButton anyModifier rt >> ungrabKey dis anyKey anyModifier rt
+  xSetErrorHandler
+  hSetBuffering stdout NoBuffering
+  sync dis False
+  return $ SUNConf dis rt uc nc fc nmlck
 
 splitH :: SplitRatio -> SUN ()
-splitH r = safeModify focusWS (doSplit $ hSplit r) >>
-           arrange >> refresh >> updateFocus >> updateBar
+splitH r = do
+  storeUndo
+  safeModify focusWS (doSplit $ hSplit r)
+  arrange >> refresh >> updateFocus >> updateBar
 
 splitV :: SplitRatio -> SUN ()
-splitV r = safeModify focusWS (doSplit $ vSplit r) >>
-           arrange >> refresh >> updateFocus >> updateBar
+splitV r = do
+  storeUndo
+  safeModify focusWS (doSplit $ vSplit r)
+  arrange >> refresh >> updateFocus >> updateBar
 
 -- | Configure the sizes of all mapped windows according to current tree shape. 
 arrange :: SUN ()
@@ -175,18 +179,48 @@ stateFunc ssf = Control.Monad.State.get >>= \ss -> return (ssf ss)
 moveWinToWS :: Int -> SUN ()
 moveWinToWS wsn = modifyState (moveToWS wsn) >> arrange >> refresh >> updateBar >> updateFocus
 
+-- | Undo the last action (split, resize, swap, etc)
+undo :: SUN ()
+undo = do
+  un <- gets (undoHistory . focusWS)
+  cws <- gets focusWS
+  let vws = getVisWins cws
+      hws = getHidWins cws
+  unless (null un) $ do
+    let us@(u:_) = un
+        vws' = getVisWins u
+        hws' = getHidWins u
+        fws = (vws ++ hws) \\ (vws' ++ hws')
+        fw  = focusedWin u
+    focusWS =: u
+    (undoHistory . focusWS) =: tail us
+    (hidden . focusWS) =. (++ fws)
+    nhws <- gets (hidden . focusWS)
+    when (isNothing fw && (not $ null nhws)) $ raiseHidden R
+    arrange >> refresh >> updateFocus >> updateBar
+
+storeUndo :: SUN ()
+storeUndo = do
+  cws <- gets focusWS
+  (undoHistory . focusWS) =. (cws :)
+
 -- | Map all windows that should be visible, unmap all window that shouldn't.
 refresh :: SUN ()
 refresh = asks display >>= \dis -> do
     modifyState updateWorkspace
     vws <- fmap getVisWins $ gets focusWS ; aws <- stateFunc getAllWins
     fs <- gets (floats . focusWS) ; afs <- fmap (map (L.get floats)) $ gets workspaces
-    rt <- asks root
     liftX $ mapM_ (mapWindow dis) $ vws ++ fs
     liftX $ mapM_ (unmapWindow dis) $ (aws \\ vws) ++ (concat afs \\ fs)
-    (_,_,qt) <- liftX $ queryTree dis rt
-    let killGhostWins win = when (win `notElem` qt) $ removeWindow win
-    mapM_ killGhostWins aws
+    killGhostWins
+
+killGhostWins :: SUN ()
+killGhostWins = do
+  dis <- asks display
+  rt <- asks root
+  (_,_,qt) <- liftX $ queryTree dis rt
+  aws <- stateFunc getAllWins
+  mapM_ (\win -> when (win `notElem` qt) $ removeWindow win) aws
 
 -- | Switch to another workspace
 changeWS :: Int -> SUN ()
@@ -196,6 +230,7 @@ changeWS wsn = gets focusWSNum >>= \fwsn -> do
       lastWS =: fwsn
     refresh >> arrange >> updateBar >> updateFocus
 
+-- | Switch to last focused workspace
 toggleWS :: SUN ()
 toggleWS = gets lastWS >>= changeWS
 
@@ -588,8 +623,9 @@ swap dir = do
     sw <- gets screenWidth ; sh <- gets screenHeight
     let fw = fromFrame t ; nw = fromFrame $ changeFocus dir sw sh t
     when (nw /= fw) $ do
-        safeModify (tree . focusWS) (replace fw . changeFocus dir sw sh . replace nw)
-        arrange >> updateFocus >> updateBar
+      storeUndo
+      safeModify (tree . focusWS) (replace fw . changeFocus dir sw sh . replace nw)
+      arrange >> updateFocus >> updateBar
 
 removeFrame :: SUN ()
 removeFrame = do

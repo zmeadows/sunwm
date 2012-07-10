@@ -65,6 +65,7 @@ data WorkSpace = WorkSpace
     , _floats       :: ![Window]
     , _focusFloat   :: !(Maybe Window)
     , _inFullScreen :: Bool
+    , _undoHistory  :: ![WorkSpace]
     } deriving (Show, Eq)
 
 data Direction = L | R | U | D
@@ -87,7 +88,7 @@ emptyZipper = SZ emptyFrame []
 
 -- | An empty default workspace
 emptyWS :: WorkSpace
-emptyWS = WorkSpace emptyZipper [] [] Nothing False
+emptyWS = WorkSpace emptyZipper [] [] Nothing False []
 
 walkTrail :: SUNPath -> SUNZipper -> SUNZipper
 walkTrail p = modify trail (p:)
