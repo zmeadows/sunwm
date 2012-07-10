@@ -144,6 +144,7 @@ arrange = asks display >>= \dis -> do
 resizeFrame :: Direction -> SplitRatio -> SUN ()
 resizeFrame dir dr = gets (trail . tree . focusWS) >>= \t ->
   when (t /= []) $ do
+    storeUndo
     safeModify (tree . focusWS) (resize dir dr) 
     arrange >> refresh >> updateFocus >> updateBar
 
@@ -262,28 +263,28 @@ banish = do
 
 -- | Make all split ratios in the tree 0.5
 equalize :: SUN ()
-equalize = safeModify (tree . focusWS) makeEqual >> arrange
+equalize = storeUndo >> safeModify (tree . focusWS) makeEqual >> arrange
 
 -- | Rotate current layout by 90 degrees
 flipT :: SUN ()
-flipT = safeModify (tree . focusWS) flipTree >> arrange >> refresh >> updateFocus
+flipT = storeUndo >> safeModify (tree . focusWS) flipTree >> arrange >> refresh >> updateFocus
 
 -- | Kill a window. Properly. Thanks XMonad!
 killWindow :: SUN ()
 killWindow = asks display >>= \dis -> do
-    wmdelt <- atomWMDELETEWINDOW
-    wmprot <- atomWMPROTOCOLS
-    fw <- fmap focusedWin $ gets focusWS
-    ffw <- gets (focusFloat . focusWS)
-    liftX $ when (isJust fw || isJust ffw) $ do
-    let w = fromMaybe (fromJust fw) ffw
-    protocols <- getWMProtocols dis w
-    if wmdelt `elem` protocols
-      then allocaXEvent $ \ev -> do
-           setEventType ev clientMessage
-           setClientMessageEvent ev w wmprot 32 wmdelt 0
-           sendEvent dis w False noEventMask ev
-      else void (killClient dis w)
+  wmdelt <- atomWMDELETEWINDOW
+  wmprot <- atomWMPROTOCOLS
+  fw <- fmap focusedWin $ gets focusWS
+  ffw <- gets (focusFloat . focusWS)
+  liftX $ when (isJust fw || isJust ffw) $ do
+  let w = fromMaybe (fromJust fw) ffw
+  protocols <- getWMProtocols dis w
+  if wmdelt `elem` protocols
+    then allocaXEvent $ \ev -> do
+         setEventType ev clientMessage
+         setClientMessageEvent ev w wmprot 32 wmdelt 0
+         sendEvent dis w False noEventMask ev
+    else void (killClient dis w)
 
 -- | Kills the current window (floating or not) and
 -- removes all traces of it from SUNState
@@ -316,11 +317,11 @@ getAtom str = asks display >>= \dis -> liftX $ internAtom dis str False
 -- | Checks if a window has a certain property
 isInProperty :: String -> String -> Window -> SUN Bool
 isInProperty p v w = do
-    va <- getAtom v
-    r <- getProp32s p w
-    return $ case r of
-        Just xs -> fromIntegral va `elem` xs
-        _ -> False
+  va <- getAtom v
+  r <- getProp32s p w
+  return $ case r of
+    Just xs -> fromIntegral va `elem` xs
+    _ -> False
 
 -- | Window property analysis functions
 isFullscreen :: Window -> SUN Bool
@@ -629,18 +630,19 @@ swap dir = do
 
 removeFrame :: SUN ()
 removeFrame = do
-    ffw <- gets (focusFloat . focusWS)
-    when (isNothing ffw) $ do
-      safeModify focusWS killFrame
-      arrange >> refresh >> updateFocus >> updateBar
+  storeUndo
+  ffw <- gets (focusFloat . focusWS)
+  when (isNothing ffw) $ do
+    safeModify focusWS killFrame
+    arrange >> refresh >> updateFocus >> updateBar
 
 focusTo :: Direction -> SUN ()
 focusTo dir = do
-    ffw <- gets (focusFloat . focusWS)
-    when (isNothing ffw) $ do
-      sw <- gets screenWidth ; sh <- gets screenHeight
-      safeModify (tree . focusWS) $ changeFocus dir sw sh
-      arrange >> refresh >> updateFocus >> updateBar
+  ffw <- gets (focusFloat . focusWS)
+  when (isNothing ffw) $ do
+    sw <- gets screenWidth ; sh <- gets screenHeight
+    safeModify (tree . focusWS) $ changeFocus dir sw sh
+    arrange >> refresh >> updateFocus >> updateBar
 
 -- | dmenu spawner
 dmenu :: MonadIO m => String -> String -> String -> String -> String -> m ()
@@ -680,7 +682,7 @@ setMouseDrag dragType = do
 -- | Strip numlock && capslock from a mask
 cleanMask :: KeyMask -> SUN KeyMask
 cleanMask km = asks numlockMask >>= \nml ->
-    return (complement (nml .|. lockMask) .&. km)
+  return (complement (nml .|. lockMask) .&. km)
 
 mouseMove :: Window -> SUN ()
 mouseMove w = asks display >>= \dis -> do
