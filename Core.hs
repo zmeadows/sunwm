@@ -266,11 +266,17 @@ banish = do
 
 -- | Make all split ratios in the tree 0.5
 equalize :: SUN ()
-equalize = storeUndo >> safeModify (tree . focusWS) makeEqual >> arrange
+equalize = do
+  storeUndo
+  safeModify (tree . focusWS) makeEqual 
+  arrange >> refresh >> updateBar >> updateFocus
 
 -- | Rotate current layout by 90 degrees
 flipT :: SUN ()
-flipT = storeUndo >> safeModify (tree . focusWS) flipTree >> arrange >> refresh >> updateFocus
+flipT = do
+  storeUndo 
+  safeModify (tree . focusWS) flipTree
+  arrange >> refresh >> updateBar >> updateFocus
 
 -- | Kill a window. Properly. Thanks XMonad!
 killWindow :: SUN ()
