@@ -81,6 +81,7 @@ data XMobarConf = XMobarConf
 
 $(mkLabels [''SUNConf, ''UserConf, ''XMobarConf])
 
+-- | Lift an action out of the SUN monad into good ol' IO.
 liftX :: MonadIO m => IO a -> m a
 liftX = liftIO
 
@@ -174,6 +175,8 @@ raiseHidden dir = do
 modifyState :: MonadState s m => (s -> s) -> m ()
 modifyState ssf = Control.Monad.State.get >>= \ss -> put (ssf ss)
 
+-- | Applies a function to the state and returns the result, but
+-- does NOT update it in the global state
 stateFunc ::  MonadState a m => (a -> b) -> m b
 stateFunc ssf = Control.Monad.State.get >>= \ss -> return (ssf ss)
 
@@ -182,6 +185,7 @@ moveWinToWS :: Int -> SUN ()
 moveWinToWS wsn = modifyState (moveToWS wsn) >> arrange >> refresh >> updateBar >> updateFocus
 
 -- | Undo the last action (split, resize, swap, etc)
+-- STILL EXPERIMENTAL!
 undo :: SUN ()
 undo = do
   un <- gets (undoHistory . focusWS)
@@ -201,13 +205,15 @@ undo = do
     when (isNothing fw && (not $ null nhws)) $ raiseHidden R
     arrange >> refresh >> updateFocus >> updateBar
 
+-- | Stores current workspace in the undo history, making sure
+-- the undo history doesn't exceed the user-specified size
 storeUndo :: SUN ()
 storeUndo = do
   nus <- asks (maxUndo . userConf)
   cws <- gets focusWS
-  (undoHistory . focusWS) =. (cws :) . take 49
+  (undoHistory . focusWS) =. (cws :) . take (nus - 1)
 
--- | Map all windows that should be visible, unmap all window that shouldn't.
+-- | Map all windows that should be visible, unmap all windows that shouldn't.
 refresh :: SUN ()
 refresh = asks display >>= \dis -> do
     modifyState updateWorkspace
@@ -217,7 +223,7 @@ refresh = asks display >>= \dis -> do
     liftX $ mapM_ (unmapWindow dis) $ (aws \\ vws) ++ (concat afs \\ fs)
     killGhostWins
 
--- | Remove windows from workspaces when they don't actually exist according to X11
+-- | Remove windows from workspaces when they don't actually exist according to X11.
 killGhostWins :: SUN ()
 killGhostWins = do
   dis <- asks display
@@ -360,6 +366,9 @@ atomWMDELETEWINDOW   = getAtom "WM_DELETE_WINDOW"
 atomWMSTATE           = getAtom "WM_STATE"
 
 -- | Detects bar/screen dimensions and sets state values accordingly
+-- Continues to attempt to detect bar for 10 seconds until it gives up
+-- to account for launch time of xmobar.
+-- TODO: Find a non-hackish way to do this.
 configureBarScr :: Int -> SUN ()
 configureBarScr n = do
   dis <- asks display ; rt <- asks root
@@ -374,10 +383,10 @@ configureBarScr n = do
       let bh = fid $ wa_height bwa + wa_y bwa
       barHeight =: bh
       screenHeight =: sh - bh
-  when (null qt' && n < 70) $ do
+  when (null qt' && n < 100) $ do
       liftX $ threadDelay 100000
       configureBarScr (n+1)
-  when (null qt' && n >= 70) $ do
+  when (null qt' && n >= 100) $ do
       barHeight =: 0
       screenHeight =: sh
 
@@ -414,7 +423,7 @@ updateBar = asks (barConf . userConf) >>= \c -> do
             ++ " " ++ wTitle' ++ " " ++ intercalate "|" (vs ++ hs)
 
 -- | Update the focused window, redraw borders accordingly on all mapped windows.
--- TODO: Clean this beast up
+-- TODO: Clean this beast up a little
 updateFocus :: SUN ()
 updateFocus = do
     (dis,rt,sw,sh,nc,fc,uc) <- getConf
@@ -622,7 +631,7 @@ grabPrefixTops = do
     p' <- liftX $ toKeyCode p
     liftX $ xGrabKey p' >> mapM_ xGrabKey keys'
 
--- | Kill Xorg
+-- | Kill X11
 quit :: SUN ()
 quit = liftX exitSuccess
 
@@ -637,6 +646,8 @@ swap dir = do
       safeModify (tree . focusWS) (replace fw . changeFocus dir sw sh . replace nw)
       arrange >> updateFocus >> updateBar
 
+-- | Remove currently focused frame from the tree and, if one was present, add the
+-- previously focused window to the hidden stack.
 removeFrame :: SUN ()
 removeFrame = do
   storeUndo
@@ -670,7 +681,7 @@ sunwm !uc = setup uc >>= runSUN
     (grabPrefixTops >> updateBar >> configureBarScr 0 >> eventLoop) st
   where st = initState $ length $ L.get wsNames uc
 
--- | Core function of the whole window manager.  Recieves the events
+-- | Core function of the whole window manager.  Receives the events
 -- and sends them to eventDispatch.
 eventLoop :: SUN ()
 eventLoop = forever $ asks display >>= \dis -> do
