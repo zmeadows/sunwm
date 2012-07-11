@@ -86,29 +86,17 @@ defaultKeys = M.fromList
     ]
 
 defaultTopKeys :: M.Map (KeyMask, KeySym) (SUN ())
-defaultTopKeys = M.fromList
-    [ ((mod1Mask, xK_1), changeWS 1)
-    , ((mod1Mask, xK_2), changeWS 2)
-    , ((mod1Mask, xK_3), changeWS 3)
-    , ((mod1Mask, xK_4), changeWS 4)
-    , ((mod1Mask, xK_5), changeWS 5)
-    , ((mod1Mask, xK_6), changeWS 6)
-    , ((mod1Mask, xK_7), changeWS 7)
-    , ((mod1Mask, xK_8), changeWS 8)
-    , ((mod1Mask, xK_Left), moveLeftWS)
+defaultTopKeys = M.fromList $
+    [ ((mod1Mask, xK_Left), moveLeftWS)
     , ((mod1Mask, xK_Right), moveRightWS)
     , ((mod1Mask, xK_Tab), toggleWS)
-    , ((mod1Mask .|. shiftMask, xK_1), moveWinToWS 1)
-    , ((mod1Mask .|. shiftMask, xK_2), moveWinToWS 2)
-    , ((mod1Mask .|. shiftMask, xK_3), moveWinToWS 3)
-    , ((mod1Mask .|. shiftMask, xK_4), moveWinToWS 4)
-    , ((mod1Mask .|. shiftMask, xK_5), moveWinToWS 5)
-    , ((mod1Mask .|. shiftMask, xK_6), moveWinToWS 6)
-    , ((mod1Mask .|. shiftMask, xK_7), moveWinToWS 7)
-    , ((mod1Mask .|. shiftMask, xK_8), moveWinToWS 8)
     , ((mod1Mask .|. shiftMask, xK_j), resizeFrame D 0.02)
     , ((mod1Mask .|. shiftMask, xK_k), resizeFrame U 0.02)
     , ((mod1Mask .|. shiftMask, xK_l), resizeFrame R 0.02)
     , ((mod1Mask .|. shiftMask, xK_h), resizeFrame L 0.02)
     , ((mod1Mask .|. shiftMask, xK_q), quit)
-    ]
+    ] ++ wsBinds ++ wsMBinds
+  where wsBinds = map (\(k,n) -> ((mod1Mask, k), changeWS n))
+          $ zip [xK_1..] [1..length workspaceNames]
+        wsMBinds = map (\(k,n) -> ((mod1Mask .|. shiftMask, k), moveWinToWS n))
+          $ zip [xK_1..] [1..length workspaceNames]
