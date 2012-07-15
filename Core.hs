@@ -593,8 +593,8 @@ eventDispatch !evt@(KeyEvent {ev_event_type = et}) = when (et == keyPress) $ do
     when ((km,ks) == p && not inP) $ do
       inPrefix =: True
       cur <- makeCursor xC_rtl_logo
-      liftX $ grabPointer dis rt False 0 grabModeAsync grabModeAsync none cur currentTime
-      liftX $ grabKeyboard dis rt True grabModeAsync grabModeAsync currentTime
+      _ <- liftX $ grabPointer dis rt False 0 grabModeAsync grabModeAsync none cur currentTime
+      _ <- liftX $ grabKeyboard dis rt True grabModeAsync grabModeAsync currentTime
       liftX $ freeCursor dis cur
     when inP $ do
       kbs <- asks (keyBinds . userConf)
@@ -639,7 +639,7 @@ quit = liftX exitSuccess
 swap :: Direction -> SUN ()
 swap dir = do
     t <- gets (tree . focusWS)
-    sw <- gets screenWidth ; sh <- gets screenHeight
+    (sw,sh) <- getScrDims
     let fw = fromFrame t ; nw = fromFrame $ changeFocus dir sw sh t
     when (nw /= fw) $ do
       storeUndo
@@ -695,7 +695,7 @@ eventLoop = forever $ asks display >>= \dis -> do
 setMouseDrag :: Maybe DragType -> SUN ()
 setMouseDrag dragType = do
     rt <- asks root ; dis <- asks display
-    liftX $ grabPointer dis rt False (buttonReleaseMask .|. pointerMotionMask)
+    _  <- liftX $ grabPointer dis rt False (buttonReleaseMask .|. pointerMotionMask)
             grabModeAsync grabModeAsync none none currentTime
     dragging =: dragType
 
@@ -768,6 +768,9 @@ clickFocusEmptyFrame (x,y) = do
   arrange >> refresh >> updateFocus >> updateBar
  where isInRectangle (x',y') (rx,ry,rw,rh) =
         (x' > rx) && (x' < (rx+rw)) && (y' > ry) && (y' < (ry + rh))
+
+only :: SUN ()
+only = return ()
 
 -- | Toggle the current workspace to fullscreen and back
 toggleFullScreen :: SUN ()

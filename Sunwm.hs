@@ -28,7 +28,7 @@ import qualified Data.Map as M
 
 myBarConf :: Handle -> XMobarConf
 myBarConf = XMobarConf 
-  ("#efefef", "#729fcf") -- focusWS
+  ("#222222", "#E3C7A4") -- focusWS
   ("#efefef", "#222222") -- hiddenWS
   ("#8f8f8f", "#222222") -- emptyHiddenWS
   ("#efefef", "#222222") -- activeWinTitle
@@ -42,7 +42,7 @@ workspaceNames = ["web","comm","code1","code2","code3","mus","misc1","misc2"]
 defaultConfig :: Handle -> UserConf
 defaultConfig h = UserConf
       "rgb:4f/4f/4f"     -- Normal Border Color
-      "rgb:72/9f/cf"     -- Focused Border Color
+      "rgb:e3/c7/a4"     -- Focused Border Color
       1                  -- Border Width
       defaultKeys        -- Prefix Key Binds
       defaultTopKeys     -- Top Level Key Binds
@@ -65,7 +65,7 @@ defaultKeys = M.fromList
     , ((shiftMask, xK_n), splitH 0.65 >> focusTo D)
     , ((mod1Mask,  xK_n), splitH 0.35 >> focusTo D >> swap U)
     , ((0, xK_p),  dmenu "-*-terminus-medium-*-*-*-14-*-*-*-*-*-*-*"
-                         "#222222" "#efefef" "#222222" "#729fcf")
+                         "#222222" "#efefef" "#222222" "#e3c7a4")
     , ((shiftMask, xK_h), swap L)
     , ((shiftMask, xK_l), swap R)
     , ((shiftMask, xK_k), swap U)
@@ -95,8 +95,12 @@ defaultTopKeys = M.fromList $
     , ((mod1Mask .|. shiftMask, xK_l), resizeFrame R 0.02)
     , ((mod1Mask .|. shiftMask, xK_h), resizeFrame L 0.02)
     , ((mod1Mask .|. shiftMask, xK_q), quit)
-    ] ++ wsBinds ++ wsMBinds
-  where wsBinds = map (\(k,n) -> ((mod1Mask, k), changeWS n))
-          $ zip [xK_1..] [1..length workspaceNames]
-        wsMBinds = map (\(k,n) -> ((mod1Mask .|. shiftMask, k), moveWinToWS n))
-          $ zip [xK_1..] [1..length workspaceNames]
+    ] ++ workspaceSendBinds ++ workspaceMoveBinds
+
+workspaceMoveBinds :: [((KeyMask, KeySym),SUN ())]
+workspaceMoveBinds = map (\(k,n) -> ((mod1Mask, k), changeWS n))
+                     $ zip [xK_1..] [1..length workspaceNames]
+
+workspaceSendBinds :: [((KeyMask, KeySym),SUN ())]
+workspaceSendBinds = map (\(k,n) -> ((mod1Mask .|. shiftMask, k), moveWinToWS n))
+                     $ zip [xK_1..] [1..length workspaceNames]

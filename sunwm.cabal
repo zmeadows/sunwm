@@ -6,8 +6,9 @@ License-file: LICENSE
 Author: Zac Meadows
 Maintainer: zmeadows@gmail.com
 Build-Type: Simple
-Cabal-Version: >= 1.10
+Cabal-Version: >= 1.2
 
 Executable sunwm
   Main-is: Sunwm.hs
   Build-Depends: base, X11, fclabels, mtl, containers, extensible-exceptions, unix, transformers
+  Ghc-Options: -funbox-strict-fields -Wall -O2 -fspec-constr-count=32

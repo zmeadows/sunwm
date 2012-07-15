@@ -34,9 +34,9 @@ import Data.Maybe (isJust)
 -- avoid zombie processes, and clean up any extant zombie processes.
 installSignalHandlers :: MonadIO m => m ()
 installSignalHandlers = liftIO $ do
-    installHandler openEndedPipe Ignore Nothing
-    installHandler sigCHLD Ignore Nothing
-    (try :: IO a -> IO (Either SomeException a))
+    _ <- installHandler openEndedPipe Ignore Nothing
+    _ <- installHandler sigCHLD Ignore Nothing
+    _ <- (try :: IO a -> IO (Either SomeException a))
       $ fix $ \more -> do
         x <- getAnyProcessStatus False False
         when (isJust x) more
@@ -44,8 +44,8 @@ installSignalHandlers = liftIO $ do
 
 uninstallSignalHandlers :: MonadIO m => m ()
 uninstallSignalHandlers = liftIO $ do
-    installHandler openEndedPipe Default Nothing
-    installHandler sigCHLD Default Nothing
+    _ <- installHandler openEndedPipe Default Nothing
+    _ <- installHandler sigCHLD Default Nothing
     return ()
 
 spawn :: MonadIO m => String -> m ()
@@ -57,14 +57,11 @@ spawnPID x = xfork $ executeFile "/bin/sh" False ["-c", x] Nothing
 
 -- | A replacement for 'forkProcess' which resets default signal handlers.
 xfork :: MonadIO m => IO () -> m ProcessID
-xfork x = liftIO . forkProcess . finally nullStdin $ do
-                uninstallSignalHandlers
-                createSession
-                x
+xfork proc = liftIO . forkProcess . finally nullStdin $
+    uninstallSignalHandlers >> createSession >> proc
  where nullStdin = do
          fd <- openFd "/dev/null" ReadOnly Nothing defaultFileFlags
-         dupTo fd stdInput
-         closeFd fd
+         dupTo fd stdInput >> closeFd fd
 
 spawnPipe :: String -> IO Handle
 spawnPipe x = do
@@ -72,9 +69,9 @@ spawnPipe x = do
     setFdOption wr CloseOnExec True
     h <- fdToHandle wr
     hSetBuffering h LineBuffering
-    forkProcess $ do
-        createSession
-        uninstallSignalHandlers
-        dupTo rd stdInput
+    _ <- forkProcess $ do
+        _ <- createSession
+        _ <- uninstallSignalHandlers
+        _ <- dupTo rd stdInput
         executeFile "/bin/sh" False ["-c", x] Nothing
     return h
