@@ -1,20 +1,30 @@
-{-
-  Copyright 2011-2012 Zac Meadows
+{- Copyright 2011-2012 Zac Meadows
 
-  This file is part of sunWM.
+   This file is part of sunWM.
 
-  sunWM is free software: you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation, either version 3 of the License, or
-  (at your option) any later version.
+   sunWM is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
 
-  sunWM is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
+   sunWM is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
 
-  You should have received a copy of the GNU General Public License
-  along with sunWM.  If not, see <http://www.gnu.org/licenses/>.
+   You should have received a copy of the GNU General Public License
+   along with sunWM.  If not, see <http://www.gnu.org/licenses/>.
+
+-- --------------------------------------------------------------------------
+-- Module      :  SunWM.Core
+-- Copyright   :  (c) Zac Meadows 2012
+-- License     :  GPL3 (see LICENSE)
+--
+-- Maintainer  :  zmeadows@gmail.com
+--
+-- Core interaction between Xlib and the data structures/functions defined
+-- in STree.hs.
+-- --------------------------------------------------------------------------
 -}
 
 {-# LANGUAGE GeneralizedNewtypeDeriving, BangPatterns, TemplateHaskell, TypeOperators #-}
@@ -528,15 +538,18 @@ eventDispatch :: Event -> SUN ()
 eventDispatch !(UnmapEvent {ev_window = w, ev_send_event = synthetic}) = when synthetic (removeWindow w)
 
 eventDispatch !(MapRequestEvent {ev_window = win}) = do
+    dis <- asks display
     fw <- fmap focusedWin $ gets focusWS
     allWins <- stateFunc getAllWins
-    isF <- isFullscreen win ; isD <- isDialog win ; isS <- isSplash win
-    unless (win `elem` allWins || isF || isD || isS) $ do
+    isF <- isFullscreen win ; isDia <- isDialog win ; isS <- isSplash win
+    isDk <- isDock win
+    unless (win `elem` allWins || isF || isDia || isS || isDk) $ do
       when (isJust fw) $ (hidden . focusWS) =. (fromJust fw:)
       (tree . focusWS) =. replace (Just win)
       (focusFloat . focusWS) =: Nothing
       arrange >> refresh >> updateFocus >> updateBar
-    when (isF || isS || isD) $ float win
+    when (isF || isS || isDia) $ float win
+    when isDk $ liftX $ mapWindow dis win
 
 eventDispatch !evt@(ButtonEvent {ev_window = w, ev_event_type = t, ev_x = x, ev_y = y})
   | t == buttonPress = do

@@ -1,20 +1,31 @@
-{-
-  Copyright 2011-2012 Zac Meadows
+{- Copyright 2011-2012 Zac Meadows
 
-  This file is part of sunWM.
+   This file is part of sunWM.
 
-  sunWM is free software: you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation, either version 3 of the License, or
-  (at your option) any later version.
+   sunWM is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
 
-  sunWM is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
+   sunWM is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
 
-  You should have received a copy of the GNU General Public License
-  along with sunWM.  If not, see <http://www.gnu.org/licenses/>.
+   You should have received a copy of the GNU General Public License
+   along with sunWM.  If not, see <http://www.gnu.org/licenses/>.
+
+-- --------------------------------------------------------------------------
+-- Module      :  SunWM.STree
+-- Copyright   :  (c) Zac Meadows 2012
+-- License     :  GPL3 (see LICENSE)
+--
+-- Maintainer  :  zmeadows@gmail.com
+--
+-- The underlying data structures of sunWM are defined here. Everything here
+-- is purely functional, divorced from the evils of Xlib and easily testable.
+-- To understand how zippers work: http://learnyouahaskell.com/zippers
+-- --------------------------------------------------------------------------
 -}
 
 {-# LANGUAGE BangPatterns, TemplateHaskell, TypeOperators #-}

@@ -1,21 +1,33 @@
-{-
-  Copyright 2011-2012 Zac Meadows
+{- Copyright 2011-2012 Zac Meadows
 
-  This file is part of sunWM.
+   This file is part of sunWM.
 
-  sunWM is free software: you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation, either version 3 of the License, or
-  (at your option) any later version.
+   sunWM is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
 
-  sunWM is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
+   sunWM is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
 
-  You should have received a copy of the GNU General Public License
-  along with sunWM.  If not, see <http://www.gnu.org/licenses/>.
+   You should have received a copy of the GNU General Public License
+   along with sunWM.  If not, see <http://www.gnu.org/licenses/>.
+
+
+-- --------------------------------------------------------------------------
+-- Module      :  SunWM.Prop
+-- Copyright   :  (c) Zac Meadows 2012
+-- License     :  GPL3 (see LICENSE)
+--
+-- Maintainer  :  zmeadows@gmail.com
+--
+-- QuickCheck routines to test the core STree datastructures for integrity
+-- under common types of operations.
+-- --------------------------------------------------------------------------
 -}
+module Prop where
 
 import STree
 import Test.QuickCheck

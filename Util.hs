@@ -1,5 +1,4 @@
-{-
-  Copyright 2011-2012 Zac Meadows
+{- Copyright 2011-2012 Zac Meadows
 
   This file is part of sunWM.
 
@@ -15,6 +14,17 @@
 
   You should have received a copy of the GNU General Public License
   along with sunWM.  If not, see <http://www.gnu.org/licenses/>.
+
+
+-- --------------------------------------------------------------------------
+-- Module      :  SunWM.Util
+-- Copyright   :  (c) Zac Meadows 2012
+-- License     :  GPL3 (see LICENSE)
+--
+-- Maintainer  :  zmeadows@gmail.com
+--
+-- Utility functions required for various extraneous purposes.
+-- --------------------------------------------------------------------------
 -}
 
 module Util where
