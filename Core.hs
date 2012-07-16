@@ -795,6 +795,8 @@ only = do
       focus . tree . focusWS =: Frame fw
       hidden . focusWS =: delete (fromJust fw) (aws ++ fs)
     when (isJust ffw) $ do
+      focusFloat . focusWS =: Nothing
+      floats . focusWS =: []
       focus . tree . focusWS =: Frame ffw
       hidden . focusWS =: delete (fromJust ffw) (aws ++ fs)
     when (isNothing ffw && isNothing fw) $ do

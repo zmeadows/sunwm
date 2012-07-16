@@ -37,7 +37,8 @@ main :: IO ()
 main = spawnPipe "xmobar" >>= (sunwm . defaultConfig) >>= print
 
 workspaceNames:: [String]
-workspaceNames = ["web","comm","code1","code2","code3","mus","misc1","misc2"]
+workspaceNames = map show [1..9]
+--workspaceNames = ["web","comm","code1","code2","code3","mus","misc1","misc2"]
 
 defaultConfig :: Handle -> UserConf
 defaultConfig h = UserConf
