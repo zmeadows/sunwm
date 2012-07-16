@@ -75,6 +75,7 @@ defaultKeys = M.fromList
     , ((0, xK_i), raiseHidden L)
     , ((0, xK_r), removeFrame)
     , ((0, xK_c), spawnTerminal)
+    , ((0, xK_e), only)
     , ((0, xK_q), killWindow)
     , ((0, xK_b), banish)
     , ((0, xK_u), undo)

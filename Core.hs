@@ -770,13 +770,32 @@ clickFocusEmptyFrame (x,y) = do
         (x' > rx) && (x' < (rx+rw)) && (y' > ry) && (y' < (ry + rh))
 
 only :: SUN ()
-only = return ()
+only = do
+  fs <- gets (floats . focusWS)
+  aws <- fmap (\ws -> getVisWins ws ++ getHidWins ws) $ gets focusWS
+  ffw <- gets (focusFloat . focusWS)
+  fw <- fmap focusedWin $ gets focusWS
+  inF <- gets (inFullScreen . focusWS)
+  when (not inF) $ do
+    storeUndo
+    when (isJust fw && isNothing ffw) $ do
+      focus . tree . focusWS =: Frame fw
+      hidden . focusWS =: delete (fromJust fw) (aws ++ fs)
+    when (isJust ffw) $ do
+      focus . tree . focusWS =: Frame ffw
+      hidden . focusWS =: delete (fromJust ffw) (aws ++ fs)
+    when (isNothing ffw && isNothing fw) $ do
+      focus . tree . focusWS =: Frame Nothing
+      hidden . focusWS =: (aws ++ fs)
+    trail . tree . focusWS =: []
+    arrange >> refresh >> updateFocus >> updateBar
 
 -- | Toggle the current workspace to fullscreen and back
 toggleFullScreen :: SUN ()
 toggleFullScreen = do
   ffw <- gets (focusFloat . focusWS)
   fw <- fmap focusedWin $ gets focusWS
+  unless (isNothing fw && isNothing ffw) storeUndo
   when (isNothing ffw && isJust fw) $ do
     float $ fromJust fw
     (inFullScreen . focusWS) =: True
