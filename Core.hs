@@ -657,7 +657,7 @@ swap dir = do
     when (nw /= fw) $ do
       storeUndo
       safeModify (tree . focusWS) (replace fw . changeFocus dir sw sh . replace nw)
-      arrange >> updateFocus >> updateBar
+      arrange >> refresh >> updateFocus >> updateBar
 
 -- | Remove currently focused frame from the tree and, if one was present, add the
 -- previously focused window to the hidden stack.
@@ -831,3 +831,19 @@ readWorkSpace :: String -> SUN ()
 readWorkSpace path = do
   t <- liftX $ readFile path
   liftX $ print t
+
+shift :: Direction -> SUN ()
+shift dir = do
+  ff <- isJust <$> gets (focusFloat . focusWS)
+  inF <- gets (inFullScreen . focusWS)
+  unless (ff || inF) $ do
+    t <- gets (tree . focusWS)
+    (sw,sh) <- getScrDims
+    let fw = fromFrame t
+        nw = fromFrame $ changeFocus dir sw sh t
+    when (nw /= fw && isJust fw) $ do
+      (tree . focusWS) =. (replace Nothing)
+      raiseHidden R
+      (tree . focusWS) =. (replace fw . changeFocus dir sw sh)
+      when (isJust nw) $ (hidden . focusWS) =. ((fromJust nw):)
+      arrange >> refresh >> updateFocus >> updateBar

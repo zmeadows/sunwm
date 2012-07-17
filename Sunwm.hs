@@ -22,16 +22,16 @@ import STree
 import Util
 
 import Graphics.X11
-import Data.Bits
+import Data.Bits hiding (shift)
 import System.IO
 import qualified Data.Map as M
 
 myBarConf :: Handle -> XMobarConf
 myBarConf = XMobarConf 
-  ("#222222", "#E3C7A4") -- focusWS
-  ("#efefef", "#222222") -- hiddenWS
+  ("#222222", "#f8f8f8") -- focusWS
+  ("#f8f8f8", "#222222") -- hiddenWS
   ("#8f8f8f", "#222222") -- emptyHiddenWS
-  ("#efefef", "#222222") -- activeWinTitle
+  ("#f8f8f8", "#222222") -- activeWinTitle
 
 main :: IO ()
 main = spawnPipe "xmobar" >>= (sunwm . defaultConfig) >>= print
@@ -43,7 +43,7 @@ workspaceNames = map show ([1..9] :: [Int])
 defaultConfig :: Handle -> UserConf
 defaultConfig h = UserConf
       "rgb:4f/4f/4f"     -- Normal Border Color
-      "rgb:e3/c7/a4"     -- Focused Border Color
+      "rgb:f8/f8/f8"     -- Focused Border Color
       1                  -- Border Width
       defaultKeys        -- Prefix Key Binds
       defaultTopKeys     -- Top Level Key Binds
@@ -66,7 +66,7 @@ defaultKeys = M.fromList
     , ((shiftMask, xK_n), splitH 0.65 >> focusTo D)
     , ((mod1Mask,  xK_n), splitH 0.35 >> focusTo D >> swap U)
     , ((0, xK_p),  dmenu "-*-terminus-medium-*-*-*-14-*-*-*-*-*-*-*"
-                         "#222222" "#efefef" "#222222" "#e3c7a4")
+                         "#222222" "#f8f8f8" "#f8f8f8" "#222222")
     , ((shiftMask, xK_h), swap L)
     , ((shiftMask, xK_l), swap R)
     , ((shiftMask, xK_k), swap U)
@@ -84,6 +84,10 @@ defaultKeys = M.fromList
     , ((0, xK_Escape), return ())
     , ((0, xK_equal), equalize)
     , ((0, xK_slash), flipT)
+    , ((mod1Mask, xK_h), shift L)
+    , ((mod1Mask, xK_l), shift R)
+    , ((mod1Mask, xK_j), shift D)
+    , ((mod1Mask, xK_k), shift U)
     , ((shiftMask, xK_space), unfloat)
     ]
 
