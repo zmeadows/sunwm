@@ -45,18 +45,18 @@ import Graphics.X11.Xlib.Types (Dimension, Position)
 type SplitRatio = Double
 
 data SplitType = H {_ratio :: SplitRatio} | V {_ratio :: SplitRatio}
-    deriving (Show, Eq)
+    deriving (Read, Show, Eq)
 
 data SUNTree = Frame (Maybe Window)
              | Split SplitType !SUNTree !(SUNTree)
-    deriving (Show, Eq)
+    deriving (Read, Show, Eq)
 
 data SUNPath = LU { _splitType :: SplitType, _splitTree :: !(SUNTree) }
              | RD { _splitType :: SplitType, _splitTree :: !(SUNTree) }
-    deriving (Show, Eq)
+    deriving (Read, Show, Eq)
 
 data SUNZipper = SZ { _focus :: !(SUNTree), _trail :: ![SUNPath] }
-    deriving (Show, Eq)
+    deriving (Read, Show, Eq)
 
 data SUNState = SUNState
     { _focusWS      :: !(WorkSpace)
@@ -68,7 +68,7 @@ data SUNState = SUNState
     , _screenWidth  :: !Dimension
     , _screenHeight :: !Dimension
     , _lastWS       :: Int
-    } deriving (Show, Eq)
+    } deriving (Read, Show, Eq)
 
 data WorkSpace = WorkSpace
     { _tree         :: !(SUNZipper)
@@ -77,14 +77,14 @@ data WorkSpace = WorkSpace
     , _focusFloat   :: !(Maybe Window)
     , _inFullScreen :: Bool
     , _undoHistory  :: ![WorkSpace]
-    } deriving (Show, Eq)
+    } deriving (Read, Show, Eq)
 
 data Direction = L | R | U | D
-    deriving (Show, Eq)
+    deriving (Read, Show, Eq)
 
 data DragType = Resize Window Dimension Dimension 
               | Move Window Position Position Position Position
-    deriving (Show, Eq)
+    deriving (Read, Show, Eq)
 
 -- Generate Lenses for all data types using fclabels.
 $(mkLabels [''SplitType, ''SUNPath, ''SUNZipper, ''SUNState, ''WorkSpace])
