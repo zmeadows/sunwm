@@ -580,8 +580,10 @@ removeWindow w = do
 
 -- | Resizes frame in a specific direction
 resizeFrame :: Direction -> SplitRatio -> SUN ()
-resizeFrame dir dr = gets (trail . tree . focusWS) >>= \t ->
-  when (t /= []) $ do
+resizeFrame dir dr = do
+  t <- gets (trail . tree . focusWS)
+  ff <- gets (focusFloat . focusWS)
+  when (t /= [] && isNothing ff) $ do
     storeUndo
     safeModify (tree . focusWS) (resize dir dr) 
     arrange >> refresh >> updateFocus >> updateBar
@@ -699,7 +701,7 @@ swap dir = do
       safeModify (tree . focusWS) (replace fw . changeFocus dir sw sh . replace nw)
       arrange >> refresh >> updateFocus >> updateBar
 
--- | Toggle the current workspace to fullscreen and back
+-- | Toggle the currently focused window to fullscreen and back
 toggleFullScreen :: SUN ()
 toggleFullScreen = do
   ffw <- gets (focusFloat . focusWS)
@@ -834,6 +836,9 @@ updateFocus = do
             when (tl /= []) drawFrameBorder
             liftIO $ mapM_ unFocus $ ws ++ fs
             mapM_ (xGrabButton True) $ ws ++ fs
+
+windowList :: SUN ()
+windowList = return ()
 
 writeWorkSpace :: String -> SUN ()
 writeWorkSpace path = do
