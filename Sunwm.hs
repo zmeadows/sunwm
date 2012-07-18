@@ -28,7 +28,7 @@ import qualified Data.Map as M
 
 myBarConf :: Handle -> XMobarConf
 myBarConf = XMobarConf 
-  ("#222222", "#f8f8f8") -- focusWS
+  ("#222222", "#f3ce03") -- focusWS
   ("#f8f8f8", "#222222") -- hiddenWS
   ("#8f8f8f", "#222222") -- emptyHiddenWS
   ("#f8f8f8", "#222222") -- activeWinTitle
@@ -43,7 +43,7 @@ workspaceNames = map show ([1..9] :: [Int])
 defaultConfig :: Handle -> UserConf
 defaultConfig h = UserConf
       "rgb:4f/4f/4f"     -- Normal Border Color
-      "rgb:f8/f8/f8"     -- Focused Border Color
+      "rgb:f3/ce/03"     -- Focused Border Color
       1                  -- Border Width
       defaultKeys        -- Prefix Key Binds
       defaultTopKeys     -- Top Level Key Binds
@@ -52,6 +52,9 @@ defaultConfig h = UserConf
       (myBarConf h)      -- Xmobar Configuration
       "urxvt256c +sb"    -- Terminal Command
       15                 -- Max # of undos to store
+      "-*-terminus-medium-*-*-*-14-*-*-*-*-*-*-*" -- Font
+      "rgb:22/22/22"     -- Background
+      "rgb:f8/f8/f8"     -- Foreground
 
 defaultKeys :: M.Map (KeyMask, KeySym) (SUN ())
 defaultKeys = M.fromList
@@ -66,7 +69,7 @@ defaultKeys = M.fromList
     , ((shiftMask, xK_n), splitH 0.65 >> focusTo D)
     , ((mod1Mask,  xK_n), splitH 0.35 >> focusTo D >> swap U)
     , ((0, xK_p),  dmenu "-*-terminus-medium-*-*-*-14-*-*-*-*-*-*-*"
-                         "#222222" "#f8f8f8" "#f8f8f8" "#222222")
+                         "#222222" "#f8f8f8" "#f3ce03" "#222222")
     , ((shiftMask, xK_h), swap L)
     , ((shiftMask, xK_l), swap R)
     , ((shiftMask, xK_k), swap U)
