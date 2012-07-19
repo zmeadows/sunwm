@@ -54,7 +54,7 @@ defaultConfig h = UserConf
       15                 -- Max # of undos to store
       "-*-terminus-medium-*-*-*-14-*-*-*-*-*-*-*" -- Font
       "rgb:22/22/22"     -- Background
-      "rgb:f8/f8/f8"     -- Foreground
+      "rgb:ff/00/00"     -- Foreground
 
 defaultKeys :: M.Map (KeyMask, KeySym) (SUN ())
 defaultKeys = M.fromList

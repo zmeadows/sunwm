@@ -44,6 +44,7 @@ import Control.Category
 import Control.Concurrent
 import Control.Applicative
 
+import Prelude hiding ((.), id)
 import Data.Bits
 import Data.List (delete, (\\), find, intercalate)
 import Data.Maybe (fromMaybe, fromJust, isNothing, isJust)
@@ -53,8 +54,6 @@ import qualified Data.Map as M (Map, lookup, keys)
 
 import System.IO
 import System.Exit
-
-import Prelude hiding ((.), id)
 
 newtype SUN a = SUN (ErrorT String (ReaderT SUNConf (StateT SUNState IO)) a)
     deriving (Monad, MonadPlus, MonadIO, MonadState SUNState, MonadReader SUNConf, Functor)
@@ -163,9 +162,6 @@ clickFocusEmptyFrame (x,y) = do
   arrange >> refresh >> updateFocus >> updateBar
  where isInRectangle (x',y') (rx,ry,rw,rh) =
         (x' > rx) && (x' < (rx+rw)) && (y' > ry) && (y' < (ry + rh))
-
-colon :: SUN ()
-colon = return ()
 
 -- | Detects bar/screen dimensions and sets state values accordingly
 -- Continues to attempt to detect bar for 10 seconds until it gives up
@@ -327,11 +323,13 @@ eventDispatch !_ = return ()
 -- | Core function of the whole window manager.  Receives the events
 -- and sends them to eventDispatch.
 eventLoop :: SUN ()
-eventLoop = asks display >>= \dis ->
-  forever (liftIO $ do
+eventLoop = forever $ asks display >>= \dis -> do
+  evt <- liftIO $ do
     sync dis False
-    allocaXEvent $ \e -> nextEvent dis e >> getEvent e)
-      >>= eventDispatch
+    allocaXEvent $ \e -> do
+      nextEvent dis e
+      getEvent e
+  eventDispatch evt
 
 -- | Rotate current layout by 90 degrees
 flipT :: SUN ()
@@ -365,7 +363,7 @@ getAtom :: String -> SUN Atom
 getAtom str = asks display >>= \dis -> liftIO $ internAtom dis str False
 
 getColor :: Display -> ScreenNumber -> String -> IO Pixel
-getColor dis scr str = let cMap = defaultColormap dis scr in
+getColor dis scr !str = let cMap = defaultColormap dis scr in
     (color_pixel . fst) <$> allocNamedColor dis cMap str
 
 getConf :: SUN (Display, Window, Dimension, Dimension, Pixel, Pixel, UserConf)
@@ -528,11 +526,6 @@ raiseHidden dir = do
   unless ff $ do
     focusWS =. cycleHidden dir
     arrange >> refresh >> updateFocus >> updateBar
-
-readWorkSpace :: String -> SUN ()
-readWorkSpace path = do
-  tr <- liftIO $ readFile path
-  liftIO $ print tr
 
 -- | Map all windows that should be visible, unmap all windows that shouldn't.
 refresh :: SUN ()
@@ -837,27 +830,19 @@ updateFocus = do
             liftIO $ mapM_ unFocus $ ws ++ fs
             mapM_ (xGrabButton True) $ ws ++ fs
 
-windowList :: SUN ()
-windowList = return ()
-
-writeWorkSpace :: String -> SUN ()
-writeWorkSpace path = do
-  tr <- gets (tree . focusWS)
-  liftIO $ writeFile path (show tr)
-
 -- | Grab or ungrab a mouse button
 xGrabButton :: Bool -> Window -> SUN ()
 xGrabButton grab w = asks display >>= \dis -> do
-    nmlck <- asks numlockMask
-    liftIO $ if grab
-        then forM_ [button1, button2, button3] $ \b ->
-               grabButton dis b anyModifier w False buttonPressMask
-               grabModeAsync grabModeSync none none
-        else do
-          ungrabButton dis anyButton anyModifier w 
-          forM_ [mod1Mask, mod1Mask .|. nmlck, mod1Mask .|. lockMask
-                , mod1Mask .|. nmlck .|. lockMask] $ \m -> do
-            grabButton dis button1 m w False buttonPressMask
-              grabModeAsync grabModeSync none none
-            grabButton dis button3 m w False buttonPressMask
-              grabModeAsync grabModeSync none none
+  nmlck <- asks numlockMask
+  liftIO $ if grab
+    then forM_ [button1, button2, button3] $ \b ->
+           grabButton dis b anyModifier w False buttonPressMask
+             grabModeAsync grabModeSync none none
+    else do
+      ungrabButton dis anyButton anyModifier w 
+      forM_ [mod1Mask, mod1Mask .|. nmlck, mod1Mask .|. lockMask
+           , mod1Mask .|. nmlck .|. lockMask] $ \m -> do
+        grabButton dis button1 m w False buttonPressMask
+          grabModeAsync grabModeSync none none
+        grabButton dis button3 m w False buttonPressMask
+          grabModeAsync grabModeSync none none

@@ -31,13 +31,13 @@
 {-# LANGUAGE BangPatterns, TemplateHaskell, TypeOperators #-}
 module STree where
 
-import Control.Category
 import Prelude hiding ((.), id)
 import Data.Label hiding (fw)
-
 import Data.List (minimumBy, delete, find)
 import Data.Maybe (isJust, isNothing, fromJust)
 import Data.Ord (comparing)
+
+import Control.Category
 
 import Graphics.X11.Types (Window)
 import Graphics.X11.Xlib.Types (Dimension, Position)
