@@ -26,35 +26,38 @@ import Data.Bits hiding (shift)
 import System.IO
 import qualified Data.Map as M
 
-myBarConf :: Handle -> XMobarConf
-myBarConf = XMobarConf 
-  ("#222222", "#f3ce03") -- focusWS
-  ("#f8f8f8", "#222222") -- hiddenWS
-  ("#8f8f8f", "#222222") -- emptyHiddenWS
-  ("#f8f8f8", "#222222") -- activeWinTitle
-
 main :: IO ()
 main = spawnPipe "xmobar" >>= (sunwm . defaultConfig) >>= print
+
+myBarConf :: Handle -> XMobarConf
+myBarConf h = XMobarConf {
+    _currentC     = ("#222222", "#f3ce03"),
+    _hiddenC      = ("#f8f8f8", "#222222"),
+    _hiddenEmptyC = ("#8f8f8f", "#222222"),
+    _titleC       = ("#f8f8f8", "#222222"),
+    _handle       = h
+    }
 
 workspaceNames:: [String]
 workspaceNames = map show ([1..9] :: [Int])
 --workspaceNames = ["web","comm","code1","code2","code3","mus","misc1","misc2"]
 
 defaultConfig :: Handle -> UserConf
-defaultConfig h = UserConf
-      "rgb:4f/4f/4f"     -- Normal Border Color
-      "rgb:f3/ce/03"     -- Focused Border Color
-      1                  -- Border Width
-      defaultKeys        -- Prefix Key Binds
-      defaultTopKeys     -- Top Level Key Binds
-      workspaceNames     -- Self explanatory
-      (0, xK_F13)        -- Prefix Key
-      (myBarConf h)      -- Xmobar Configuration
-      "urxvt256c +sb"    -- Terminal Command
-      15                 -- Max # of undos to store
-      "-*-terminus-medium-*-*-*-14-*-*-*-*-*-*-*" -- Font
-      "rgb:22/22/22"     -- Background
-      "rgb:ff/00/00"     -- Foreground
+defaultConfig h = UserConf {
+    _normalBorder  = "rgb:4f/4f/4f",
+    _focusedBorder = "rgb:f3/ce/03",
+    _borderWidth   = 1,
+    _keyBinds      = defaultKeys,
+    _topKeyBinds   = defaultTopKeys,
+    _wsNames       = workspaceNames,
+    _prefixKey     = (0, xK_F13),
+    _barConf       = myBarConf h,
+    _terminal      = "urxvt256c +sb",
+    _maxUndo       = 15,
+    _font          = "-*-terminus-medium-*-*-*-14-*-*-*-*-*-*-*",
+    _background    = "rgb:22/22/22",
+    _foreground    = "rgb:ff/00/00" 
+    }
 
 defaultKeys :: M.Map (KeyMask, KeySym) (SUN ())
 defaultKeys = M.fromList

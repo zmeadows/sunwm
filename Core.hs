@@ -92,12 +92,12 @@ data XMobarConf = XMobarConf
     , _hiddenC      :: !XMColor
     , _hiddenEmptyC :: !XMColor
     , _titleC       :: !XMColor
-    , _handle       :: !Handle 
+    , _handle       :: !Handle
     } deriving (Show, Eq)
 
 $(mkLabels [''SUNConf, ''UserConf, ''XMobarConf])
 
--- | Configure the sizes of all mapped windows according to current tree shape. 
+-- | Configure the sizes of all mapped windows according to current tree shape.
 arrange :: SUN ()
 arrange = asks display >>= \dis -> do
     t <- gets (tree . focusWS)
@@ -248,10 +248,11 @@ eventDispatch !evt@(ButtonEvent {ev_window = w, ev_event_type = t, ev_x = x, ev_
       rt <- asks root
       when (w == rt) $ clickFocusEmptyFrame (fid x, fid y)
       when (w /= rt) $ do
-      cm <- cleanMask $ ev_state evt
-      when ((cm, ev_button evt) == (0,button1)) $ clickFocus w
-      when ((cm, ev_button evt) == (mod1Mask,button1)) $ mouseMove w
-      when ((cm, ev_button evt) == (mod1Mask,button3)) $ mouseResize w
+        cm <- cleanMask $ ev_state evt
+        when ((cm, ev_button evt) == (0,button1)) $ clickFocus w
+        when ((cm, ev_button evt) == (mod1Mask,button1)) $ mouseMove w
+        when ((cm, ev_button evt) == (mod1Mask,button3)) $ mouseResize w
+  | t /= buttonPress = return ()
 
 eventDispatch !(MotionEvent {ev_event_type = _t, ev_x = x, ev_y = y}) = do
   drag <- gets dragging
@@ -261,8 +262,7 @@ eventDispatch !(MotionEvent {ev_event_type = _t, ev_x = x, ev_y = y}) = do
       liftIO $ moveWindow dis win (wax + (fip x - pox)) (way + (fip y - poy))
     (Just (Resize win w h)) ->
       liftIO $ resizeWindow dis win (fid x - w) (fid y - h)
-
-    Nothing -> return () -- This shouldn't ever happen though. 
+    Nothing -> return () -- This shouldn't ever happen though.
 
 eventDispatch !(ButtonEvent {ev_event_type = t})
   | t == buttonRelease = do
@@ -285,22 +285,29 @@ eventDispatch !evt@(ConfigureRequestEvent _ _ _ dis _ win x y w h bw a d vm) = d
                  setEventType ev configureNotify
                  setConfigureEvent ev win win
                      (wa_x wa) (wa_y wa) (wa_width wa)
-                     (wa_height wa) (ev_border_width evt) none 
+                     (wa_height wa) (ev_border_width evt) none
                      (wa_override_redirect wa)
                  sendEvent dis win False 0 ev
     liftIO $ sync dis False
     arrange >> updateFocus >> updateBar
 
 eventDispatch !evt@(KeyEvent {ev_event_type = et}) = when (et == keyPress) $ do
-    dis <- asks display ; rt <- asks root ; inP <- gets inPrefix ; p <- asks (prefixKey . userConf)
-    let km = ev_state evt ; kc = ev_keycode evt ; makeCursor c = liftIO $ createFontCursor dis c
+    dis <- asks display
+    rt <- asks root
+    inP <- gets inPrefix
+    p <- asks (prefixKey . userConf)
+    let km = ev_state evt
+        kc = ev_keycode evt
+        makeCursor c = liftIO $ createFontCursor dis c
     ks <- liftIO $ keycodeToKeysym dis kc 0
+
     when ((km,ks) == p && not inP) $ do
       inPrefix =: True
       cur <- makeCursor xC_rtl_logo
       _ <- liftIO $ grabPointer dis rt False 0 grabModeAsync grabModeAsync none cur currentTime
       _ <- liftIO $ grabKeyboard dis rt True grabModeAsync grabModeAsync currentTime
       liftIO $ freeCursor dis cur
+
     when inP $ do
       kbs <- asks (keyBinds . userConf)
       let kt = M.lookup (km,ks) kbs
@@ -311,6 +318,7 @@ eventDispatch !evt@(KeyEvent {ev_event_type = et}) = when (et == keyPress) $ do
             inPrefix =: False
             grabPrefixTops
           Nothing -> return ()
+
     when ((km,ks) /= p && not inP) $ do
       tkbs <- asks (topKeyBinds . userConf)
       let kt = M.lookup (km,ks) tkbs
@@ -334,7 +342,7 @@ eventLoop = forever $ asks display >>= \dis -> do
 -- | Rotate current layout by 90 degrees
 flipT :: SUN ()
 flipT = do
-  storeUndo 
+  storeUndo
   safeModify (tree . focusWS) flipTree
   arrange >> refresh >> updateBar >> updateFocus
 
@@ -343,7 +351,7 @@ float :: Window -> SUN ()
 float w = do
   modifyState (annihilateWin w)
   (focusFloat . focusWS) =: Just w
-  fs <- gets (floats . focusWS) 
+  fs <- gets (floats . focusWS)
   unless (w `elem` fs) $ do
     (floats . focusWS) =. (w:)
     dialog <- isDialog w
@@ -354,7 +362,7 @@ focusTo :: Direction -> SUN ()
 focusTo dir = do
   ffw <- gets (focusFloat . focusWS)
   when (isNothing ffw) $ do
-    sw <- gets screenWidth ; sh <- gets screenHeight
+    (sw,sh) <- getScrDims
     safeModify (tree . focusWS) $ changeFocus dir sw sh
     arrange >> refresh >> updateFocus >> updateBar
 
@@ -558,7 +566,7 @@ removeWindow w = do
   if isJust ff
     then let ffw = fromJust ff in
       when (ffw == w) $ (focusFloat . focusWS) =: Nothing
-    else do 
+    else do
     modifyState (annihilateWin w)
     case fw of
       Just w' -> when (w' == w) $ do
@@ -578,7 +586,7 @@ resizeFrame dir dr = do
   ff <- gets (focusFloat . focusWS)
   when (t /= [] && isNothing ff) $ do
     storeUndo
-    safeModify (tree . focusWS) (resize dir dr) 
+    safeModify (tree . focusWS) (resize dir dr)
     arrange >> refresh >> updateFocus >> updateBar
 
 runSUN :: SUN a -> SUNState -> SUNConf -> IO (Either String a)
@@ -603,7 +611,7 @@ setMouseDrag dragType = do
             grabModeAsync grabModeAsync none none currentTime
     dragging =: dragType
 
--- | Does basic Xlib setup and generates a SUNConf object based on 
+-- | Does basic Xlib setup and generates a SUNConf object based on
 -- user-specified settings in a UserConf.
 setup :: UserConf -> IO SUNConf
 setup !uc = openDisplay [] >>= \dis -> do
@@ -614,17 +622,18 @@ setup !uc = openDisplay [] >>= \dis -> do
   nc <- getColor dis scr $ L.get normalBorder uc
   bg <- getColor dis scr $ L.get background uc
   fg <- getColor dis scr $ L.get foreground uc
-  ms <- getModifierMapping dis 
+  ms <- getModifierMapping dis
   nmlck <- foldr (.|.) 0 <$> sequence [ do
           ks <- keycodeToKeysym dis kc 0
           if ks == xK_Num_Lock
-            then return (setBit 0 (fromIntegral m)) 
+            then return (setBit 0 (fromIntegral m))
             else return (0 :: KeyMask)
           | (m, kcs) <- ms, kc <- kcs, kc /= 0]
   selectInput dis rt $  substructureRedirectMask
                     .|. substructureNotifyMask
                     .|. structureNotifyMask
                     .|. buttonPressMask
+                    .|. buttonReleaseMask
   liftIO $ ungrabButton dis anyButton anyModifier rt >> ungrabKey dis anyKey anyModifier rt
   xSetErrorHandler
   hSetBuffering stdout NoBuffering
@@ -679,7 +688,7 @@ storeUndo = do
 
 -- | Entry point.
 sunwm :: UserConf -> IO (Either String ())
-sunwm !uc = setup uc >>= runSUN 
+sunwm !uc = setup uc >>= runSUN
     (grabPrefixTops >> updateBar >> configureBarScr 0 >> eventLoop) st
   where st = initState $ length $ L.get wsNames uc
 
@@ -716,6 +725,7 @@ toggleWS :: SUN ()
 toggleWS = gets lastWS >>= changeWS
 
 -- | Undo the last action (split, resize, swap, etc)
+-- NOTE: Still slightly buggy!
 undo :: SUN ()
 undo = do
   un <- gets (undoHistory . focusWS)
@@ -757,10 +767,10 @@ updateBar = asks (barConf . userConf) >>= \c -> do
     fwsn <- gets focusWSNum ; wss <- gets workspaces
     wTitle <- liftIO $ maybe (return Nothing) (fetchName dis) fw
     fwTitle <- liftIO $ maybe (return Nothing) (fetchName dis) ffw
-    let h = L.get handle c ; cur = L.get currentC c ; hid = L.get hiddenC c 
+    let h = L.get handle c ; cur = L.get currentC c ; hid = L.get hiddenC c
         hidE = L.get hiddenEmptyC c ; titC = L.get titleC c
         wCount ws = length $ getHidWins ws ++ getVisWins ws ++ L.get floats ws
-        xmb (fgc,bgc) str = 
+        xmb (fgc,bgc) str =
           "<fc=" ++ fgc ++ "," ++ bgc ++ ">" ++ " " ++ take 45 str ++ " " ++ "</fc>"
         wsF (ws,n)
             | n == (fwsn-1) = xmb cur (wsns !! n)
@@ -776,7 +786,7 @@ updateBar = asks (barConf . userConf) >>= \c -> do
              $ if isJust ffw then delete (fromJust ffw) fws else fws
     let vs = map (xmb hid . fromJust) $ filter (/= Nothing) $ vwins ++ fwins
     let hs = map (xmb hidE . fromJust) $ filter (/= Nothing) hwins
-    liftIO $ hPutStrLn h $ filter (`elem` ['\32'..'\126']) $ frmtns 
+    liftIO $ hPutStrLn h $ filter (`elem` ['\32'..'\126']) $ frmtns
             ++ " " ++ wTitle' ++ " " ++ intercalate "|" (vs ++ hs)
 
 -- | Update the focused window, redraw borders accordingly on all mapped windows.
@@ -793,7 +803,7 @@ updateFocus = do
     let unFocus win = setWindowBorder dis win nc >> setWindowBorderWidth dis win bw
         bw = L.get borderWidth uc
     liftIO $ clearWindow dis rt
-    case ff of 
+    case ff of
       (Just ffw) -> do
         inFS <- gets (inFullScreen . focusWS)
         isFS <- isFullscreen ffw
@@ -810,7 +820,7 @@ updateFocus = do
           then liftIO $ setWindowBorderWidth dis (head ws) 0
           else liftIO $ mapM_ unFocus $ ws ++ delete ffw fs
         liftIO $ setInputFocus dis ffw revertToParent 0
-        liftIO $ raiseWindow dis ffw 
+        liftIO $ raiseWindow dis ffw
       Nothing -> do
         liftIO $ mapM_ (raiseWindow dis) fs
         case fw of
@@ -839,7 +849,7 @@ xGrabButton grab w = asks display >>= \dis -> do
            grabButton dis b anyModifier w False buttonPressMask
              grabModeAsync grabModeSync none none
     else do
-      ungrabButton dis anyButton anyModifier w 
+      ungrabButton dis anyButton anyModifier w
       forM_ [mod1Mask, mod1Mask .|. nmlck, mod1Mask .|. lockMask
            , mod1Mask .|. nmlck .|. lockMask] $ \m -> do
         grabButton dis button1 m w False buttonPressMask
