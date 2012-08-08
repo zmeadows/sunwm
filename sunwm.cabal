@@ -1,16 +1,16 @@
 name: sunWM
-version: 0.0.1
+version: 0.0.2
 synopsis: X11 tiling window-manager
 category: System
-license: GPL3
+license: GPL-3
 license-file: LICENSE
 author: Zac Meadows
 maintainer: zmeadows@gmail.com
 
-cabal-Version: >= 1.2
-build-Type: Simple
+cabal-version: >= 1.2
+build-type: Simple
 
 executable sunwm
   main-is: Sunwm.hs
   build-depends: base, X11, fclabels, mtl, containers, extensible-exceptions, unix, transformers
-  ghc-options: -funbox-strict-fields -Wall -O2 -fspec-constr-count=32 -fforce-recomp
+  ghc-options: -funbox-strict-fields -O2 -fspec-constr-count=56

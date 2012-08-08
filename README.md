@@ -39,4 +39,4 @@
 
  * Add multiple methods of focusing windows with mouse (click-to-focus, follow-mouse, disabled)
  * Add support for multiple displays.
- * Add support for simple application-specific startup hooks (eg. XMonad's ManageHook)
+ * Add support for user-defined hooks (ex: startup, split, change desktop, etc)
