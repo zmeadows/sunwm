@@ -28,15 +28,18 @@
 
 ## CURRENT FEATURES ##
 
- * Manual tyling in the style of Ratpoison/StumpWM (using prefix key).
- * Integrated support for floating windows (in the style of dwm).
- * Supports multiple workspaces with independent layouts.
- * dwm-style status bar provided by XMobar.
  * Written in Haskell and based on a core of heavily-tested purely-functional data structures/operations.
+ * Manual tyling in the style of Ratpoison/StumpWM (using prefix key).
+ * Multiple workspaces with independent layouts.
+ * dwm-style status bar provided by XMobar.
  * Configured via a Haskell source file for added customizeability.
+ * Multiple displays using Xinerama
 
 ## PLANNED FEATURES ##
 
- * Add multiple methods of focusing windows with mouse (click-to-focus, follow-mouse, disabled)
- * Add support for multiple displays.
- * Add support for user-defined hooks (ex: startup, split, change desktop, etc)
+ * Multiple methods of focusing windows with mouse (click-to-focus, follow-mouse, disabled)
+ * Support for user-defined hooks (ex: startup, split, change desktop, etc)
+ * Undo support (like Ratpoison)
+
+## UNPLANNED FEATURES ##
+ * floating windows
