@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns, TemplateHaskell, TypeOperators #-}
 module STree where
+-- | TODO: add hackage-style module exports
 
 import FocusMap
 
@@ -42,12 +43,14 @@ data SUNScreen = SUNScreen
     , _yPos         :: !Position
     , _width        :: !Dimension
     , _height       :: !Dimension
+    , _lastWS       :: !Int
     } deriving (Read,Show,Eq)
 
 data SUNState = SUNState
     { _screens      :: !(FocusMap Int SUNScreen)
     , _inPrefix     :: !Bool
     , _barHeight    :: !Dimension
+    , _lastScr      :: !Int
     } deriving (Read,Show,Eq)
 
 data Direction = L | R | U | D
@@ -68,11 +71,11 @@ emptyWS :: Workspace
 emptyWS = Workspace emptyZipper [] False
 
 emptyScr :: Int -> Rectangle -> SUNScreen
-emptyScr !nws !(Rectangle x y w h) = SUNScreen wss x y w h
+emptyScr !nws !(Rectangle x y w h) = SUNScreen wss x y w h 1
     where wss = fromList 1 $ zip [1..nws] $ replicate nws emptyWS
 
 initState :: Int -> [Rectangle] -> SUNState
-initState !nw !recs = SUNState scrs False 0
+initState !nw !recs = SUNState scrs False 0 1
   where scrs = fromList 1 $ zip [1..length recs] $ map (emptyScr nw) recs
 
 walkTrail :: SUNPath -> SUNZipper -> SUNZipper
@@ -360,6 +363,9 @@ getWSAllWins !ws =
 getScrAllWins :: SUNScreen -> [Window]
 getScrAllWins = concatMap getWSAllWins . elems . get workspaces
 
+getScrVisWins :: SUNScreen -> [Window]
+getScrVisWins scr = flattenToWins $ get tree $ focused $ get workspaces scr
+
 -- | ------------- | --
 -- | CUSTOM LENSES | --
 -- | ------------- | --
@@ -399,49 +405,4 @@ moveToScr :: Int -> FocusMap Int SUNScreen -> FocusMap Int SUNScreen
 moveToScr nscn m@(fscn,scs)
     | nscn == fscn ||
   where fw =
-
-
-
-getWorkspaces = M.elems . snd . get workspaces
-
-setWS :: Int -> Workspace -> SUNScreen -> SUNScreen
-setWS n nws = modifyWS n (\_ -> nws)
-
-modifyFocWS :: (Workspace -> Workspace) -> SUNScreen -> SUNScreen
-modifyFocWS f !ss = modifyWS (getFocusWSNum ss) f ss
-
-modifyTree :: Int -> (SUNZipper -> SUNZipper) -> SUNScreen -> SUNScreen
-modifyTree n f = modifyWS n (modify tree f)
-
-modifyFocTree :: (SUNZipper -> SUNZipper) -> SUNScreen -> SUNScreen
-modifyFocTree f = modifyFocWS (modify tree f)
-
-modifyHidden :: Int -> ([Window] -> [Window]) -> SUNScreen -> SUNScreen
-modifyHidden n f = modifyWS n (modify hidden f)
-
-modifyFocHidden :: ([Window] -> [Window]) -> SUNScreen -> SUNScreen
-modifyFocHidden f = modifyFocWS (modify hidden f)
-
-getWorkspaces :: SUNScreen -> [Workspace]
-getWorkspaces = M.elems . snd . get workspaces
-
-getTree :: Int -> SUNScreen -> SUNZipper
-getTree n = get tree . getWS n
-
-getFocusTree :: SUNScreen -> SUNZipper
-getFocusTree !ss = getTree (getFocusWSNum ss) ss
-
-getFocusTrail = get trail . getFocusTree
-
-
-getScr :: Int -> SUNState -> SUNScreen
-getScr n = fromJust . M.lookup n . snd . get screens
-
-getFocusScrNum :: SUNState -> Int
-getFocusScrNum = fst . get screens
-
-getFocusScr :: SUNState -> SUNScreen
-getFocusScr !st = getScr (getFocusScrNum st) st
-
-
 -}

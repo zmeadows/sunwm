@@ -15,6 +15,8 @@ type FocusMap k v = (k, M.Map k v)
 focused :: Ord k => FocusMap k v -> v
 focused (i,m) = fromJust $ M.lookup i m
 
+unfocused (i,m) =  map snd $ filter (\(k,_) -> k /= i) $ M.toList m
+
 newFocus :: Ord k => k -> FocusMap k v -> FocusMap k v
 newFocus n (_,m)
     | elem n $ M.keys m = (n,m)

@@ -51,7 +51,7 @@ defaultConfig h = UserConf {
     _wsNames       = workspaceNames,
     _prefixKey     = (0, xK_F13),
     _barConf       = myBarConf h,
-    _terminal      = "urxvt256c +sb"
+    _terminal      = "urxvtc +sb"
     }
 
 defaultKeys :: M.Map (KeyMask, KeySym) (SUN ())
@@ -73,7 +73,7 @@ defaultKeys = M.fromList
     , ((shiftMask, xK_k), swap U)
     , ((shiftMask, xK_j), swap D)
     --, ((0, xK_f), toggleFullScreen)
-    , ((0, xK_o), raiseHidden R)
+        , ((0, xK_o), raiseHidden R)
     , ((0, xK_i), raiseHidden L)
     , ((0, xK_r), removeFrame)
     , ((0, xK_c), spawnTerminal)
@@ -96,6 +96,8 @@ defaultTopKeys = M.fromList $
     , ((mod1Mask .|. shiftMask, xK_k), resizeFrame U 0.02)
     , ((mod1Mask .|. shiftMask, xK_l), resizeFrame R 0.02)
     , ((mod1Mask .|. shiftMask, xK_h), resizeFrame L 0.02)
+    , ((mod4Mask, xK_Tab), toggleScr)
+    , ((mod1Mask, xK_Tab), toggleWS)
     , ((mod1Mask .|. shiftMask, xK_q), quit)
     ] ++ workspaceSendBinds ++ workspaceMoveBinds ++ screenMoveBinds
 

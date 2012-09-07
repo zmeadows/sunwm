@@ -74,7 +74,7 @@ xfork proc = liftIO . forkProcess . finally nullStdin $
          dupTo fd stdInput >> closeFd fd
 
 spawnPipe :: String -> IO Handle
-spawnPipe x = do
+spawnPipe !x = do
     (rd, wr) <- createPipe
     setFdOption wr CloseOnExec True
     h <- fdToHandle wr
@@ -85,4 +85,3 @@ spawnPipe x = do
         _ <- dupTo rd stdInput
         executeFile "/bin/sh" False ["-c", x] Nothing
     return h
-

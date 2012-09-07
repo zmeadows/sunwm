@@ -8,14 +8,12 @@ import FocusMap
 import Prelude hiding ((.), id)
 import Control.Category ((.))
 import Data.Maybe
-import Data.List (find, delete, intercalate)
+import Data.List ((\\), find, delete, intercalate)
 import Control.Applicative
 import Control.Arrow
 import Control.Monad.State.Strict hiding (gets)
 import Control.Monad.Reader hiding (asks)
 import Control.Monad.Error
---import qualified Control.Exception.Extensible as C
-
 
 import Data.Label ((:->))
 import qualified Data.Label as L
@@ -137,11 +135,12 @@ arrangeN n = asks display >>= \dis -> do
 -- wins on other workspaces
 refresh :: SUN ()
 refresh = do
-    dis <- asks display
-    vs  <- flattenToWins <$> gets (tree . focusWS)
-    hs  <- gets (hidden . focusWS)
-    ioMap_ (mapWindow dis) vs >> ioMap_ (unmapWindow dis) hs
     --killGhostWins
+    dis <- asks display
+    scrs <- elems <$> gets screens
+    let vs = concatMap getScrVisWins scrs
+        hs = (concatMap getScrAllWins scrs) \\ vs
+    ioMap_ (mapWindow dis) vs >> ioMap_ (unmapWindow dis) hs
 
 ioMap_ :: MonadIO m => (a -> IO b) -> [a] -> m ()
 ioMap_ f !l = liftIO $ mapM_ f l
@@ -192,35 +191,45 @@ updateBar = asks display >>= \dis -> do
 putXMobarStr :: String -> SUN ()
 putXMobarStr str = asks (handle . barConf . userConf) >>= (liftIO . flip hPutStrLn str)
 
-
-
 updateFocus :: SUN ()
 updateFocus = do
+    dis <- asks display
+    rt <- asks root
+    liftIO $ clearWindow dis rt
+    scrns <- keys <$> gets screens
+    mapM_ updateFocusN scrns
+
+
+-- | TODO: donm't draw bordered on sole window if on other screen
+updateFocusN :: Int -> SUN ()
+updateFocusN scrn = do
     dis <- asks display
     rt <- asks root
     nc <- asks normalBorderColor
     fc <- asks focusedBorderColor
     bw <- asks (borderWidth . userConf)
+    scr <- flip (<!>) scrn <$> gets screens
+    fscn <- fst <$> gets screens
 
-    ws <- getAllWins
-    fw <- focusedWin
-    tl <- gets (trail . tree . focusWS)
-    --bh <- gets barHeight
+    let unFocus win = liftIO $ setWindowBorder dis win nc >> setWindowBorderWidth dis win bw
 
-    let unFocus win = setWindowBorder dis win nc >> setWindowBorderWidth dis win bw
+    let ws = getScrAllWins scr
+        fwks = focused $ L.get workspaces scr
+        fw = fromFrame $ L.get tree fwks
+        tl = L.get (trail . tree) fwks
 
-    liftIO $ clearWindow dis rt
+    ioMap_ unFocus ws
     case fw of
       Just w -> do
         if null tl
           then liftIO $ setWindowBorderWidth dis w 0
-          else liftIO $ do
-            setWindowBorderWidth dis w bw
-            setWindowBorder dis w fc
-        liftIO $ setInputFocus dis w revertToParent 0
-        liftIO $ mapM_ unFocus (delete w ws)
+          else liftIO $
+            when (scrn == fscn) $ do
+              setWindowBorderWidth dis w bw
+              setWindowBorder dis w fc
+        when (scrn == fscn) $ liftIO $ setInputFocus dis w revertToParent 0
       Nothing -> do
-        liftIO $ setInputFocus dis rt revertToParent 0
+        when (scrn == fscn) $ liftIO $ setInputFocus dis rt revertToParent 0
         when (tl /= []) drawFrameBorder
         ioMap_ unFocus ws
 
@@ -315,6 +324,7 @@ removeWindow w = react $ do
   when inF $ (inFullScreen . focusWS) =: False
 
 -- | Remove windows from workspaces when they don't actually exist according to X11.
+-- | TODO: make sure queryTree gets windows on all screens
 killGhostWins :: SUN ()
 killGhostWins = do
   dis <- asks display
@@ -356,12 +366,20 @@ raiseHidden dir = react $ focusWS =. cycleHidden dir
 changeWS :: Int -> SUN ()
 changeWS wsn = react $ do
   fwsn <- fst <$> gets (workspaces . focusScr)
-  when (fwsn /= wsn) (focusScr =. changeWorkspace wsn)
+  when (fwsn /= wsn) $ do
+    (lastWS . focusScr) =: fwsn
+    (focusScr =. changeWorkspace wsn)
 
 changeScr :: Int -> SUN ()
 changeScr scrn = react $ do
   fscrn <- fst <$> gets screens
-  when (scrn /= fscrn) $ modify $ changeScreen scrn
+  when (scrn /= fscrn) $ do
+    lastScr =: fscrn
+    modify $ changeScreen scrn
+
+toggleWS = gets (lastWS . focusScr) >>= changeWS
+
+toggleScr = gets lastScr >>= changeScr
 
 {-
 -- | Detects bar/screen dimensions and sets state values accordingly
@@ -503,7 +521,7 @@ eventDispatch !(MapRequestEvent {ev_window = win}) = react $ do
     unless (win `elem` allWins || isF || isDia || isS || isDk) $ do
       when (isJust fw) $ (hidden . focusWS) =. (fromJust fw:)
       (tree . focusWS) =. replace (Just win)
-    when isDk $ liftIO $ mapWindow dis win
+    when (isDk || isDia || isS) $ liftIO $ mapWindow dis win
 
 eventDispatch !(DestroyWindowEvent {ev_window = w}) = removeWindow w
 
