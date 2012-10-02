@@ -124,11 +124,11 @@ arrangeN n = asks display >>= \dis -> do
     (sw,sh) <- (L.get width &&& L.get height) <$> gets (screenN n)
     bw <- (2 *) <$> asks (borderWidth . userConf)
     bh <- fip <$> gets barHeight
-    let ws = flattenToDimWins sw sh t
+    let ws = flattenToDimWins sw (sh - (fi bh)) t
         putWindow ((x,y,w,h),win) = moveResizeWindow dis win (x + sx) (y + bh + sy) (w - bw) (h - bw)
     when (length ws > 1 || L.get trail t /= []) $ liftIO $ mapM_ putWindow ws
     when (length ws == 1 && L.get trail t == []) $
-        liftIO $ moveResizeWindow dis (snd $ head ws) (0 + sx) (bh + sy) sw sh
+        liftIO $ moveResizeWindow dis (snd $ head ws) sx (bh + sy) sw (sh - (fi bh))
 
 -- | Map all windows that should be visible, unmap all windows that shouldn't.
 -- | TODO: fix this, it doesn't account for multiple screens or unmap vis
@@ -244,7 +244,7 @@ drawFrameBorder = do
     bh <- gets barHeight
 
     t <- gets (tree . focusWS)
-    let mt = find ((==) t . snd) $ flatten t sw sh
+    let mt = find ((==) t . snd) $ flatten t sw (sh - (fi bh))
 
     when (isJust mt) $ liftIO $ do
         let ((x,y,w,h),_) = fromJust mt

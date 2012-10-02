@@ -1,6 +1,21 @@
 {-# LANGUAGE BangPatterns, TemplateHaskell, TypeOperators #-}
+
+-----------------------------------------------------------------------------
+---- |
+---- Module      :  STree
+---- Copyright   :  (c) Zac Meadows 2011
+---- License     :  WTFPL 2.0 (see LICENSE)
+----
+---- Maintainer  :  zmeadows@gmail.com
+---- Stability   :  unstable
+---- Portability :  not portable
+----
+---- The purely functional data structures behind SunWM.
+----
+-----------------------------------------------------------------------------
+
 module STree where
--- | TODO: add hackage-style module exports
+-- | TODO: module exports
 
 import FocusMap
 
@@ -75,7 +90,7 @@ emptyScr !nws !(Rectangle x y w h) = SUNScreen wss x y w h 1
     where wss = fromList 1 $ zip [1..nws] $ replicate nws emptyWS
 
 initState :: Int -> [Rectangle] -> SUNState
-initState !nw !recs = SUNState scrs False 0 1
+initState !nw !recs = SUNState scrs False 13 1
   where scrs = fromList 1 $ zip [1..length recs] $ map (emptyScr nw) recs
 
 walkTrail :: SUNPath -> SUNZipper -> SUNZipper
