@@ -26,31 +26,30 @@ import System.IO
 import qualified Data.Map as M
 
 main :: IO ()
-main = spawnPipe "xmobar" >>= (sunwm . defaultConfig) >>= print
+main = sunwm defaultConfig >>= print
 
-myBarConf :: Handle -> XMobarConf
-myBarConf h = XMobarConf {
-    _focusColor       = ("#222222", "#f3ce03"),
+myBarConf :: Maybe BarConf
+myBarConf = Just BarConf {
+    _focusColor       = ("#222222", "#753E80"),
     _hiddenColor      = ("#f8f8f8", "#222222"),
     _hiddenEmptyColor = ("#8f8f8f", "#222222"),
     _titleColor       = ("#f8f8f8", "#222222"),
-    _handle           = h
     }
 
 workspaceNames:: [String]
 workspaceNames = map show ([1..9] :: [Int])
 --workspaceNames = ["web","comm","code1","code2","code3","mus","misc1","misc2"]
 
-defaultConfig :: Handle -> UserConf
-defaultConfig h = UserConf {
+defaultConfig :: UserConf
+defaultConfig = UserConf {
     _normalBorder  = "rgb:4f/4f/4f",
-    _focusedBorder = "rgb:f3/ce/03",
+    _focusedBorder = "rgb:75/3E/80",
     _borderWidth   = 1,
     _keyBinds      = defaultKeys,
     _topKeyBinds   = defaultTopKeys,
     _wsNames       = workspaceNames,
     _prefixKey     = (0, xK_F13),
-    _barConf       = myBarConf h,
+    _barConf       = myBarConf,
     _terminal      = "urxvtc +sb"
     }
 
@@ -67,7 +66,7 @@ defaultKeys = M.fromList
     , ((shiftMask, xK_n), splitH 0.65 >> focusTo D)
     , ((mod1Mask,  xK_n), splitH 0.35 >> focusTo D >> swap U)
     , ((0, xK_p),  dmenu "-*-tamsyn-medium-*-*-*-14-*-*-*-*-*-*-*"
-                         "#222222" "#f8f8f8" "#f3ce03" "#222222")
+                         "#222222" "#f8f8f8" "#753E80" "#222222")
     , ((shiftMask, xK_h), swap L)
     , ((shiftMask, xK_l), swap R)
     , ((shiftMask, xK_k), swap U)

@@ -18,12 +18,12 @@ focused (i,m) = fromJust $ M.lookup i m
 unfocused (i,m) =  map snd $ filter (\(k,_) -> k /= i) $ M.toList m
 
 newFocus :: Ord k => k -> FocusMap k v -> FocusMap k v
-newFocus n (_,m)
+newFocus n fm@(_,m)
     | elem n $ M.keys m = (n,m)
-    | otherwise = error "invalid key passed to FocusMap.updateFocus"
+    | otherwise = fm
 
 (<!>) :: Ord k => FocusMap k v -> k -> v
-(<!>) (_,m) n = fromMaybe (error "invalid key passed to FocusMap.(<!>)") (M.lookup n m)
+(<!>) fm@(_,m) n = fromMaybe (focused fm) (M.lookup n m)
 
 updateK :: Ord k => k -> v -> FocusMap k v -> FocusMap k v
 updateK n v = second (M.insert n v)
@@ -46,7 +46,7 @@ keys (_,m) = M.keys m
 fromList :: Ord k => k -> [(k,v)] -> FocusMap k v
 fromList focus list
     | focus `elem` ks = (focus, M.fromList list)
-    | otherwise = error "specified focus key not found in list passed to FocusMap.fromList"
+    | otherwise = (fst $ head list, M.fromList list)
   where ks = map fst list
 
 mapF :: (v -> v) -> FocusMap k v -> FocusMap k v

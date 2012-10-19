@@ -24,33 +24,35 @@ import Data.Label hiding (fw)
 import Data.List (minimumBy, delete, find)
 import Data.Maybe
 import Data.Ord (comparing)
+import System.IO (Handle)
 
 import Control.Category ((.))
 --import Control.Arrow (first, second, (&&&))
 
 import Graphics.X11.Types (Window)
-import Graphics.X11.Xlib.Types (Dimension, Position, Rectangle(..))
+import Graphics.X11.Xlib.Types (Dimension, Position, Rectangle(..), Pixel)
+import Data.Int (Int32)
 
 type SplitRatio = Double
 
 data SplitType = H {_ratio :: SplitRatio} | V {_ratio :: SplitRatio}
-    deriving (Read,Show,Eq)
+    deriving (Show,Eq)
 
 data SUNTree = Frame (Maybe Window) | Split SplitType !SUNTree !(SUNTree)
-    deriving (Read,Show,Eq)
+    deriving (Show,Eq)
 
 data SUNPath = LU { _splitType :: SplitType, _splitTree :: !(SUNTree) }
              | RD { _splitType :: SplitType, _splitTree :: !(SUNTree) }
-    deriving (Read,Show,Eq)
+    deriving (Show,Eq)
 
 data SUNZipper = SZ { _focus :: !(SUNTree), _trail :: ![SUNPath] }
-    deriving (Read,Show,Eq)
+    deriving (Show,Eq)
 
 data Workspace = Workspace
     { _tree         :: !(SUNZipper)
     , _hidden       :: ![Window]
     , _inFullScreen :: !Bool
-    } deriving (Read,Show,Eq)
+    } deriving (Show,Eq)
 
 data SUNScreen = SUNScreen
     { _workspaces   :: !(FocusMap Int Workspace)
@@ -59,17 +61,19 @@ data SUNScreen = SUNScreen
     , _width        :: !Dimension
     , _height       :: !Dimension
     , _lastWS       :: !Int
-    } deriving (Read,Show,Eq)
+    , _barHandle    :: !(Maybe Handle)
+    } deriving (Show,Eq)
 
 data SUNState = SUNState
     { _screens      :: !(FocusMap Int SUNScreen)
     , _inPrefix     :: !Bool
     , _barHeight    :: !Dimension
     , _lastScr      :: !Int
-    } deriving (Read,Show,Eq)
+    } deriving (Show,Eq)
+
 
 data Direction = L | R | U | D
-    deriving (Read,Show,Eq)
+    deriving (Show,Eq)
 
 $(mkLabels [''SplitType, ''SUNPath, ''SUNZipper, ''Workspace, ''SUNScreen, ''SUNState])
 
@@ -86,11 +90,11 @@ emptyWS :: Workspace
 emptyWS = Workspace emptyZipper [] False
 
 emptyScr :: Int -> Rectangle -> SUNScreen
-emptyScr !nws !(Rectangle x y w h) = SUNScreen wss x y w h 1
+emptyScr !nws !(Rectangle x y w h) = SUNScreen wss x y w h 1 Nothing
     where wss = fromList 1 $ zip [1..nws] $ replicate nws emptyWS
 
 initState :: Int -> [Rectangle] -> SUNState
-initState !nw !recs = SUNState scrs False 13 1
+initState !nw !recs = SUNState scrs False 0 1
   where scrs = fromList 1 $ zip [1..length recs] $ map (emptyScr nw) recs
 
 walkTrail :: SUNPath -> SUNZipper -> SUNZipper

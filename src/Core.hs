@@ -14,6 +14,7 @@ import Control.Arrow
 import Control.Monad.State.Strict hiding (gets)
 import Control.Monad.Reader hiding (asks)
 import Control.Monad.Error
+import Control.Concurrent (threadDelay)
 
 import Data.Label ((:->))
 import qualified Data.Label as L
@@ -31,15 +32,7 @@ import Foreign.C.Types (CLong)
 import System.IO
 import System.Exit
 
-type XMColor = (String, String)
-
-data XMobarConf = XMobarConf
-    { _focusColor       :: !XMColor
-    , _hiddenColor      :: !XMColor
-    , _hiddenEmptyColor :: !XMColor
-    , _titleColor       :: !XMColor
-    , _handle           :: !Handle
-    } deriving (Show, Eq)
+-- data MouseFocusStyle = None | Click | Follow
 
 data UserConf = UserConf
     { _normalBorder  :: !String
@@ -49,9 +42,16 @@ data UserConf = UserConf
     , _topKeyBinds   :: !(Map (KeyMask, KeySym) (SUN ()))
     , _wsNames       :: ![String]
     , _prefixKey     :: !(KeyMask, KeySym)
-    , _barConf       :: !XMobarConf
+    , _barConf       :: !(Maybe BarConf)
     , _terminal      :: !String
     }
+
+data BarConf = BarConf
+    { _focusColor       :: !(String, String)
+    , _hiddenColor      :: !(String, String)
+    , _hiddenEmptyColor :: !(String, String)
+    , _titleColor       :: !(String, String)
+    } deriving (Show, Eq)
 
 data SUNConf = SUNConf
     { _display            :: !Display
@@ -65,8 +65,7 @@ data SUNConf = SUNConf
 newtype SUN a = SUN (ErrorT String (ReaderT SUNConf (StateT SUNState IO)) a)
     deriving (Monad, MonadPlus, MonadIO, MonadState SUNState, MonadReader SUNConf, Functor)
 
-$(L.mkLabels [''SUNConf, ''UserConf, ''XMobarConf])
-
+$(L.mkLabels [''SUNConf, ''BarConf, ''UserConf])
 
 -- | ---------------------- | --
 -- | SETUP/EXTRANEOUS STUFF | --
@@ -140,7 +139,7 @@ refresh = do
     scrs <- elems <$> gets screens
     let vs = concatMap getScrVisWins scrs
         hs = (concatMap getScrAllWins scrs) \\ vs
-    ioMap_ (mapWindow dis) vs >> ioMap_ (unmapWindow dis) hs
+    ioMap_ (unmapWindow dis) hs >> ioMap_ (mapWindow dis) vs
 
 ioMap_ :: MonadIO m => (a -> IO b) -> [a] -> m ()
 ioMap_ f !l = liftIO $ mapM_ f l
@@ -153,9 +152,9 @@ cleanMask :: KeyMask -> SUN KeyMask
 cleanMask km = asks numlockMask >>= \nml ->
   return (complement (nml .|. lockMask) .&. km)
 
-formatStrXMobar :: (String,String) -> String -> String
-formatStrXMobar (fg,bg) !str =
-    "<fc=" ++ fg ++ "," ++ bg ++ ">" ++ " " ++ str ++ " " ++ "</fc>"
+--formatStrXMobar :: (String,String) -> String -> String
+--formatStrXMobar (fg,bg) !str =
+--    "<fc=" ++ fg ++ "," ++ bg ++ ">" ++ " " ++ str ++ " " ++ "</fc>"
 
 getWinTitles :: [Window] -> SUN [String]
 getWinTitles !wins = asks display >>= \dis -> catMaybes <$> ioMap (fetchName dis) wins
@@ -163,33 +162,85 @@ getWinTitles !wins = asks display >>= \dis -> catMaybes <$> ioMap (fetchName dis
 focusedWin :: SUN (Maybe Window)
 focusedWin = fromFrame <$> gets (tree . focusWS)
 
+{-
+makeBar :: SUN ()
+makeBar = do
+    dis <- asks display
+    rt <- asks root
+
+    let scr = defaultScreenOfDisplay dis
+        vis = defaultVisualOfScreen scr
+        attrmask = cWOverrideRedirect .|. cWBorderPixel .|. cWBackPixel
+
+    win <- liftIO $ allocaSetWindowAttributes $ \attributes -> do
+       set_override_redirect attributes True
+       set_background_pixel attributes $ whitePixel dis (defaultScreen dis)
+       set_border_pixel attributes $ blackPixel dis (defaultScreen dis)
+       createWindow dis rt 0 0 1920 16 1 (defaultDepthOfScreen scr) inputOutput vis attrmask attributes
+
+    brfnt <- (L.get font . fromJust) <$> asks (barConf . userConf)
+
+    liftIO $ mapWindow dis win
+    liftIO $ sync dis False
+
+    bgcolor <- liftIO $ getColor dis "#ff0000"
+    gc <- liftIO $ createGC dis win
+    fontStruc <- liftIO $ loadQueryFont dis brfnt
+    liftIO $ setForeground dis gc bgcolor
+    liftIO $ fillRectangle dis win gc 0 0 1920 16
+    liftIO $ printString dis win gc fontStruc "120987"
+    liftIO $ freeGC dis gc
+    liftIO $ freeFont dis fontStruc
+
+    return ()
+-}
+
+printString :: Display -> Drawable -> GC -> FontStruct -> String -> IO ()
+printString dpy d gc fontst str = do
+    let strLen = textWidth fontst str
+        (_,asc,_,_) = textExtents fontst str
+        valign = fromIntegral asc
+        remWidth = 50 - strLen
+        offset = remWidth `div` 2
+    fgcolor <- liftIO $ getColor dpy "white"
+    bgcolor <- liftIO $ getColor dpy "blue"
+    setForeground dpy gc fgcolor
+    setBackground dpy gc bgcolor
+    drawImageString dpy d gc 0 valign str
 
 -- | Sends formated workspace boxes and window names to stdin of xmobar.
-updateBar :: SUN ()
-updateBar = asks display >>= \dis -> do
+updateBarN :: Int -> SUN ()
+updateBarN n = asks display >>= \dis -> do
     wsns  <- asks (wsNames . userConf)
-    XMobarConf focC hidC ehidC titC _ <- asks (barConf . userConf)
-
-    fw   <- focusedWin
-    fwsn <- fst <$> gets (workspaces . focusScr)
-    wss  <- elems <$> gets (workspaces . focusScr)
-    vs   <- flattenToWins <$> gets (tree . focusWS)
-    hs   <- gets (hidden . focusWS)
-
-    let wsFormat (n,ws)
-            | n == (fwsn-1) = formatStrXMobar focC  (wsns !! n)
-            | length (getWSAllWins ws) > 0  = formatStrXMobar hidC (wsns !! n)
-            | otherwise      = formatStrXMobar ehidC (wsns !! n)
-        fwsns = concatMap wsFormat $ zip [0..] wss
-        isChar c = c `elem` ['\32'..'\126']
-
-    visWinTitles <- map (formatStrXMobar hidC) <$> getWinTitles (maybe vs (delete `flip` vs) fw)
-    hidWinTitles <- map (formatStrXMobar ehidC) <$> getWinTitles hs
-    focusTitle <- fmap (maybe "" (formatStrXMobar titC)) $ liftIO $ maybe (return Nothing) (fetchName dis) fw
-    putXMobarStr $ filter isChar $ fwsns ++ " " ++ focusTitle ++ intercalate "|" (visWinTitles ++ hidWinTitles)
+--    BarConf focC hidC ehidC titC _ <- asks (barConf . userConf)
+--
+--    fw   <- focusedWin
+--    fwsn <- fst <$> gets (workspaces . focusScr)
+--    wss  <- elems <$> gets (workspaces . focusScr)
+--    vs   <- flattenToWins <$> gets (tree . focusWS)
+--    hs   <- gets (hidden . focusWS)
+--
+--    let wsFormat (n,ws)
+--            | n == (fwsn-1) = formatStrXMobar focC  (wsns !! n)
+--            | length (getWSAllWins ws) > 0  = formatStrXMobar hidC (wsns !! n)
+--            | otherwise      = formatStrXMobar ehidC (wsns !! n)
+--        fwsns = concatMap wsFormat $ zip [0..] wss
+--        isChar c = c `elem` ['\32'..'\126']
+--
+--    visWinTitles <- map (formatStrXMobar hidC) <$> getWinTitles (maybe vs (delete `flip` vs) fw)
+--    hidWinTitles <- map (formatStrXMobar ehidC) <$> getWinTitles hs
+--    focusTitle <- fmap (maybe "" (formatStrXMobar titC)) $ liftIO $ maybe (return Nothing) (fetchName dis) fw
+--    putXMobarStr $ filter isChar $ fwsns ++ " " ++ focusTitle ++ intercalate "|" (visWinTitles ++ hidWinTitles)
+    return ()
 
 putXMobarStr :: String -> SUN ()
 putXMobarStr str = asks (handle . barConf . userConf) >>= (liftIO . flip hPutStrLn str)
+
+
+--writeBarString :: Int -> String -> SUN ()
+--writeBarString scrNum str = do
+--    h <- gets (barHandle . screenN scrNum)
+--    when (isJust h) $ (liftIO . flip hPutStrLn str) $ fromJust h
 
 updateFocus :: SUN ()
 updateFocus = do
@@ -256,7 +307,7 @@ drawFrameBorder = do
         freeGC dis gc
 
 react :: SUN () -> SUN ()
-react sun = sun >> arrange >> refresh >> updateFocus >> updateBar
+react sun = sun >> refresh >> arrange >> updateFocus -- >> updateBar
 
 -- | Swap the content (empty or not) of two adjacent frames in specified direction.
 swap :: Direction -> SUN ()
@@ -481,6 +532,28 @@ grabPrefixTops = do
     p <- asks (prefixKey . userConf) >>= liftIO . toKeyCode
     liftIO $ xGrabKey p >> mapM_ xGrabKey ks'
 
+initBars :: SUN ()
+initBars = do
+   barEnabled <- isJust <$> asks (barConf . userConf)
+   -- TODO: check if xmobar is in PATH
+   when barEnabled $ do
+       screenNumList <- keys <$> gets screens
+       barHandles <- ioMap (\sn -> spawnPipe $ "xmobar -o -x " ++ sn) $ map (\n -> show (n - 1))screenNumList
+       liftIO $ threadDelay 200000
+       --  TODO: check if launch of xmobar fails
+       let assocHandle (scrNum,h) = (barHandle . screenN scrNum) =: Just h
+       mapM assocHandle $ zip screenNumList barHandles
+       writeBarString 1 "left ^p(_RIGHT) right"
+       liftIO $ threadDelay 100000
+       dis <- asks display ; rt <- asks root
+       (_,_,qt) <- liftIO $ queryTree dis rt
+       qt' <- filterM isDock qt
+       bwa <- liftIO $ getWindowAttributes dis (head qt')
+       let bh = fid $ wa_height bwa + wa_y bwa
+       barHeight =: bh
+
+       return ()
+
 -- | Rotate current layout by 90 degrees
 flipT :: SUN ()
 flipT = react $ safeModify (tree . focusWS) flipTree
@@ -579,9 +652,10 @@ eventDispatch !_ = return ()
 sunwm :: UserConf -> IO (Either String ())
 sunwm !uc = do
     conf <- setup uc
-    scrRecs <- liftIO $ getScreenInfo $ L.get display conf
+    scrRecs <- getScreenInfo $ L.get display conf
     let st = initState (length $ L.get wsNames uc) scrRecs
-    runSUN (grabPrefixTops >> updateBar >> eventLoop) st conf
+    runSUN (initBars >> grabPrefixTops >> eventLoop) st conf
+    -- runSUN (grabPrefixTops >> updateBar >> eventLoop) st conf
 
 -- | dmenu spawner
 dmenu :: MonadIO m => String -> String -> String -> String -> String -> m ()
