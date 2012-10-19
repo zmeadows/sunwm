@@ -26,5 +26,3 @@ $: write test suite (hunit, quickcheck?)
 $: command-line input (like ratpoison's 'colon' command) (is this really necessary or just really cool? or both? ...or neither?)
 $: hide windows and display only frame borders during resize? (like stumpwm)
 $: undo system like ratpoison (code for this exists in sunwm alpha code)
-$: add option to turn on/off smartborders
-$: use a different border color (rather than unfocused) for focused frame on unfocused screen

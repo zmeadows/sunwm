@@ -80,6 +80,7 @@ banish = do
     (sw,sh) <- getFocusScrDims
     liftIO $ warpPointer dis none rt 0 0 0 0 (fi sw) $ fi sh + bh
 
+-- | Gives the dimensions of the currently focused screen
 getFocusScrDims :: SUN (Dimension,Dimension)
 getFocusScrDims = (L.get width &&& L.get height) <$> gets focusScr
 
@@ -130,11 +131,11 @@ arrangeN n = asks display >>= \dis -> do
         liftIO $ moveResizeWindow dis (snd $ head ws) sx (bh + sy) sw (sh - (fi bh))
 
 -- | Map all windows that should be visible, unmap all windows that shouldn't.
--- | TODO: fix this, it doesn't account for multiple screens or unmap vis
--- wins on other workspaces
+-- TODO: make this more efficient (only map things that aren't already mapped, same for unmapped)
+-- or does x11 already account for this?
 refresh :: SUN ()
 refresh = do
-    --killGhostWins
+    killGhostWins
     dis <- asks display
     scrs <- elems <$> gets screens
     let vs = concatMap getScrVisWins scrs
@@ -161,52 +162,6 @@ getWinTitles !wins = asks display >>= \dis -> catMaybes <$> ioMap (fetchName dis
 
 focusedWin :: SUN (Maybe Window)
 focusedWin = fromFrame <$> gets (tree . focusWS)
-
-{-
-makeBar :: SUN ()
-makeBar = do
-    dis <- asks display
-    rt <- asks root
-
-    let scr = defaultScreenOfDisplay dis
-        vis = defaultVisualOfScreen scr
-        attrmask = cWOverrideRedirect .|. cWBorderPixel .|. cWBackPixel
-
-    win <- liftIO $ allocaSetWindowAttributes $ \attributes -> do
-       set_override_redirect attributes True
-       set_background_pixel attributes $ whitePixel dis (defaultScreen dis)
-       set_border_pixel attributes $ blackPixel dis (defaultScreen dis)
-       createWindow dis rt 0 0 1920 16 1 (defaultDepthOfScreen scr) inputOutput vis attrmask attributes
-
-    brfnt <- (L.get font . fromJust) <$> asks (barConf . userConf)
-
-    liftIO $ mapWindow dis win
-    liftIO $ sync dis False
-
-    bgcolor <- liftIO $ getColor dis "#ff0000"
-    gc <- liftIO $ createGC dis win
-    fontStruc <- liftIO $ loadQueryFont dis brfnt
-    liftIO $ setForeground dis gc bgcolor
-    liftIO $ fillRectangle dis win gc 0 0 1920 16
-    liftIO $ printString dis win gc fontStruc "120987"
-    liftIO $ freeGC dis gc
-    liftIO $ freeFont dis fontStruc
-
-    return ()
--}
-
-printString :: Display -> Drawable -> GC -> FontStruct -> String -> IO ()
-printString dpy d gc fontst str = do
-    let strLen = textWidth fontst str
-        (_,asc,_,_) = textExtents fontst str
-        valign = fromIntegral asc
-        remWidth = 50 - strLen
-        offset = remWidth `div` 2
-    fgcolor <- liftIO $ getColor dpy "white"
-    bgcolor <- liftIO $ getColor dpy "blue"
-    setForeground dpy gc fgcolor
-    setBackground dpy gc bgcolor
-    drawImageString dpy d gc 0 valign str
 
 updateBars :: SUN ()
 updateBars = (keys <$> gets screens) >>= mapM_ updateBarN
@@ -240,12 +195,6 @@ putXMobarStr :: Int -> String -> SUN ()
 putXMobarStr n str = do
   bh <- gets (barHandle . screenN n)
   liftIO $ hPutStrLn (fromJust bh) str
-
-
---writeBarString :: Int -> String -> SUN ()
---writeBarString scrNum str = do
---    h <- gets (barHandle . screenN scrNum)
---    when (isJust h) $ (liftIO . flip hPutStrLn str) $ fromJust h
 
 updateFocus :: SUN ()
 updateFocus = do
@@ -312,7 +261,7 @@ drawFrameBorder = do
         freeGC dis gc
 
 react :: SUN () -> SUN ()
-react sun = sun >> refresh >> arrange >> updateFocus >> updateBars
+react sun = sun >> arrange >> refresh >> updateFocus >> updateBars
 
 -- | Swap the content (empty or not) of two adjacent frames in specified direction.
 swap :: Direction -> SUN ()
@@ -437,34 +386,6 @@ toggleWS = gets (lastWS . focusScr) >>= changeWS
 
 toggleScr = gets lastScr >>= changeScr
 
-{-
--- | Detects bar/screen dimensions and sets state values accordingly
--- Continues to attempt to detect bar for 10 seconds until it gives up
--- to account for launch time of xmobar.
--- TODO: Find a non-hackish way to do this.
--- TODO: rewrite for multiple screens...
-configureBarScr :: Int -> SUN ()
-configureBarScr n = do
-  dis <- asks display ; rt <- asks root
-  (_,_,qt) <- liftIO $ queryTree dis rt
-  qt' <- filterM isDock qt
-  let scr = defaultScreen dis
-      sw = fid (displayWidth dis scr)
-      sh = fid (displayHeight dis scr)
-  screenWidth =: sw
-  unless (null qt') $ do
-      bwa <- liftIO $ getWindowAttributes dis (head qt')
-      let bh = fid $ wa_height bwa + wa_y bwa
-      barHeight =: bh
-      screenHeight =: sh - bh
-  when (null qt' && n < 100) $ do
-      liftIO $ threadDelay 100000
-      configureBarScr (n+1)
-  when (null qt' && n >= 100) $ do
-      barHeight =: 0
-      screenHeight =: sh
--}
-
 isDialog :: Window -> SUN Bool
 isDialog = isInProperty "_NET_WM_WINDOW_TYPE" "_NET_WM_WINDOW_TYPE_DIALOG"
 
@@ -585,8 +506,7 @@ eventDispatch :: Event -> SUN ()
 
 eventDispatch !(UnmapEvent {ev_window = w, ev_send_event = synthetic}) = when synthetic (removeWindow w)
 
-
--- | TODO: deal with splash/dialog etc
+-- | TODO: deal with splash/dialog etc (wait until float support added)
 eventDispatch !(MapRequestEvent {ev_window = win}) = react $ do
     dis <- asks display
     fw <- focusedWin
@@ -649,6 +569,7 @@ eventDispatch !evt@(KeyEvent {ev_event_type = et}) = when (et == keyPress) $ do
           (Just k) -> k
           Nothing -> return ()
 
+-- | Ignore all other event types for which we haven't defined specific behavior
 eventDispatch !_ = return ()
 
 sunwm :: UserConf -> IO (Either String ())

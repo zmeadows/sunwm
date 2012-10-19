@@ -30,7 +30,7 @@ main = sunwm defaultConfig >>= print
 
 myBarConf :: Maybe BarConf
 myBarConf = Just BarConf {
-    _focusColor       = ("#222222", "#753E80"),
+    _focusColor       = ("#222222", "#ff7f00"),
     _hiddenColor      = ("#f8f8f8", "#222222"),
     _hiddenEmptyColor = ("#8f8f8f", "#222222"),
     _titleColor       = ("#f8f8f8", "#222222")
@@ -43,7 +43,7 @@ workspaceNames = map show ([1..9] :: [Int])
 defaultConfig :: UserConf
 defaultConfig = UserConf {
     _normalBorder  = "rgb:4f/4f/4f",
-    _focusedBorder = "rgb:75/3E/80",
+    _focusedBorder = "rgb:ff/7f/00",
     _borderWidth   = 1,
     _keyBinds      = defaultKeys,
     _topKeyBinds   = defaultTopKeys,
@@ -100,7 +100,8 @@ defaultTopKeys = M.fromList $
     , ((mod1Mask .|. shiftMask, xK_q), quit)
     ] ++ workspaceSendBinds ++ workspaceMoveBinds ++ screenMoveBinds
 
--- | TODO: make sure this doesn't try to switch to non-existant screens?
+-- | TODO: make sure this doesn't try to switch to non-existent screens?
+-- just make user assign prefix to screen mov ebut assign binds in init
 screenMoveBinds :: [((KeyMask, KeySym),SUN ())]
 screenMoveBinds = map (\(k,n) -> ((mod4Mask, k), changeScr n))
                      $ zip [xK_1..] [1..2]
