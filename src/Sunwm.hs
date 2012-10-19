@@ -33,7 +33,7 @@ myBarConf = Just BarConf {
     _focusColor       = ("#222222", "#753E80"),
     _hiddenColor      = ("#f8f8f8", "#222222"),
     _hiddenEmptyColor = ("#8f8f8f", "#222222"),
-    _titleColor       = ("#f8f8f8", "#222222"),
+    _titleColor       = ("#f8f8f8", "#222222")
     }
 
 workspaceNames:: [String]
