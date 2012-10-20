@@ -21,7 +21,7 @@ import FocusMap
 
 import Prelude hiding ((.), id)
 import Data.Label hiding (fw)
-import Data.List (minimumBy, delete, find)
+import Data.List (minimumBy, delete, find, findIndex)
 import Data.Maybe
 import Data.Ord (comparing)
 import System.IO (Handle)
@@ -225,6 +225,15 @@ flatten !szip wth hgt = flatten' (top szip) (0,0,wth,hgt)
               rdDim = (x,y+(r.*.h),w,h-(r.*.h))
           in flatten' (left sz) luDim ++ flatten' (right sz) rdDim
 
+flattenGlobal scr =
+    let t = (get tree . focused . get workspaces) scr
+        w' = get width scr
+        h' = get height scr
+        x' = get xPos scr
+        y' = get yPos scr
+        loc = flatten t w' h'
+    in map (\((x,y,w,h),sz) -> ((fip x + fip x', fip y + fip y', fid w, fid h),sz)) loc
+
 flattenToDimWins :: Dimension -> Dimension -> SUNZipper
                     -> [((Position, Position, Dimension, Dimension), Window)]
 flattenToDimWins sw sh !sz = map pullWin $ filter isWin $ flatten sz sw sh
@@ -240,11 +249,63 @@ flattenToWins !sz = flattenToWins' $ top sz
         flattenToWins' (SZ (Frame (Just w)) _) = [w]
         flattenToWins' !sz' = flattenToWins' (left sz') ++ flattenToWins' (right sz')
 
+flattenGlobalToZips scr =
+    let t = (get tree . focused . get workspaces) scr
+    in flattenToZips t
+
 flattenToZips ::  SUNZipper -> [SUNZipper]
 flattenToZips !sz = flattenToZips' $ top sz
   where flattenToZips' (SZ (Frame Nothing) _) = []
         flattenToZips' sz'@(SZ (Frame (Just _)) _) = [sz']
         flattenToZips' !sz' = flattenToZips' (left sz') ++ flattenToZips' (right sz')
+
+screenOfWin :: Window -> FocusMap Int SUNScreen -> Maybe Int
+screenOfWin win q@(fsn,scrs) =
+    let ts = mapElems flattenGlobalToZips q
+    in fmap ((+) 1) $ findIndex (\zs -> elem (Just win) (map fromFrame zs)) ts
+
+focusToWin :: Window -> FocusMap Int SUNScreen -> FocusMap Int SUNScreen
+focusToWin win q@(fsn,scrs)
+    | nscrn == Nothing = q
+    | otherwise =
+        let nscrs = newFocus (fromJust nscrn) q
+            wss = get workspaces $ focused nscrs
+            zs = fromJust $ find ((== Just win) . fromFrame) $ flattenGlobalToZips $ focused nscrs
+            wss' = adjust (set tree zs) wss
+            nscrs' = adjust (set workspaces wss') nscrs
+        in nscrs'
+  where nscrn = screenOfWin win q
+
+-- | version after adding multi monitor focus switching
+changeFocus2 :: Direction -> FocusMap Int SUNScreen -> FocusMap Int SUNScreen
+changeFocus2 dir q@(fsn,scrs)
+    | null cands = q
+    | fromFrame (snd focusCand) == Nothing =
+        let a = mapElems flattenGlobal q
+            z = 1 + (fromJust $ findIndex (elem focusCand) a)
+            nscrs = newFocus z q
+            wss = get workspaces $ focused nscrs
+            wss' = adjust (set tree $ snd focusCand) wss
+            nscrs' = adjust (set workspaces wss') nscrs
+        in nscrs'
+    | otherwise  = focusToWin (fromJust $ fromFrame $ snd $ focusCand) q
+  where ts = concat $ mapElems flattenGlobal q
+        sz = get tree $ focused $ get workspaces $ focused q
+        (Just curW@((x,y,w,h),_)) = find ((==) sz . snd) ts
+        ts' = Data.List.delete curW ts
+        finder ((x',y',w',h'),_) = case dir of
+          L -> abs (x' + fip w' - x) < 10
+          R -> abs (x + fip w - x') < 10
+          U -> abs (y' + fip h' - y) < 10
+          D -> abs (y + fip h - y') < 10
+        cands = filter finder ts'
+        finder' (x',y',w',h') = case dir of
+          L -> min (abs ((y + fip h)-(y' + fip h'))) (abs (y - y'))
+          R -> min (abs ((y + fip h)-(y' + fip h'))) (abs (y - y'))
+          U -> min (abs ((x + fip h)-(x' + fip w'))) (abs (x - x'))
+          D -> min (abs ((x + fip h)-(x' + fip w'))) (abs (x - x'))
+        focusCand = minimumBy (comparing (finder' . fst)) cands
+
 
 -- | Searches for the windows 'closest' to the specified direction
 changeFocus :: Direction -> Dimension -> Dimension -> SUNZipper -> SUNZipper
@@ -267,6 +328,7 @@ changeFocus dir scrw scrh !sz =
       -- | TODO: can just use finder' only here and replace cands with ts'
       -- in above line?
   in if null cands then sz else newFocus
+
 
 isVSplit :: SUNPath -> Bool
 isVSplit (LU (V _) _) = True
@@ -408,6 +470,8 @@ focusWS :: SUNState :-> Workspace
 focusWS = lens getFocusWS setFocusWS
   where getFocusWS = focused . get (workspaces . focusScr)
         setFocusWS !ws = modify (workspaces . focusScr) (update ws)
+
+
 
 -- | Moves the currently focused window to another workspace
 moveToWS :: Int -> FocusMap Int Workspace -> FocusMap Int Workspace

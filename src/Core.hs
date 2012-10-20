@@ -102,6 +102,7 @@ setup !uc = do
           | (m, kcs) <- ms, kc <- kcs, kc /= 0]
   selectInput dis defRt $ substructureRedirectMask .|. substructureNotifyMask .|.
                           structureNotifyMask .|. buttonPressMask .|. buttonReleaseMask
+                          .|. enterWindowMask .|. leaveWindowMask
   liftIO $ ungrabButton dis anyButton anyModifier defRt
   liftIO $ ungrabKey dis anyKey anyModifier defRt
   xSetErrorHandler
@@ -135,7 +136,7 @@ arrangeN n = asks display >>= \dis -> do
 -- or does x11 already account for this?
 refresh :: SUN ()
 refresh = do
-    killGhostWins
+    --killGhostWins
     dis <- asks display
     scrs <- elems <$> gets screens
     let vs = concatMap getScrVisWins scrs
@@ -251,7 +252,7 @@ drawFrameBorder = do
     t <- gets (tree . focusWS)
     let mt = find ((==) t . snd) $ flatten t sw (sh - (fi bh))
 
-    when (isJust mt) $ liftIO $ do
+    when (isJust mt && (L.get trail t) /= []) $ liftIO $ do
         let ((x,y,w,h),_) = fromJust mt
         gc <- createGC dis rt
         setLineAttributes dis gc (fi bw) lineDoubleDash capButt joinMiter
@@ -264,13 +265,13 @@ react :: SUN () -> SUN ()
 react sun = sun >> arrange >> refresh >> updateFocus >> updateBars
 
 -- | Swap the content (empty or not) of two adjacent frames in specified direction.
-swap :: Direction -> SUN ()
-swap dir = react $ do
-    t <- gets (tree . focusWS)
-    (sw,sh) <- getFocusScrDims
-    let fw = fromFrame t
-        nw = fromFrame $ changeFocus dir sw sh t
-    when (nw /= fw) $ safeModify (tree . focusWS) (replace fw . changeFocus dir sw sh . replace nw)
+--swap :: Direction -> SUN ()
+--swap dir = react $ do
+--    t <- gets (tree . focusWS)
+--    (sw,sh) <- getFocusScrDims
+--    let fw = fromFrame t
+--        nw = fromFrame $ changeFocus dir sw sh t
+--    when (nw /= fw) $ safeModify (tree . focusWS) (replace fw . changeFocus dir sw sh . replace nw)
 
 -- | Make sure a function that modifies state meets certain criteria before
 -- actually applying it.  (ex: doesn't create exceedingly small windows)
@@ -419,7 +420,7 @@ getProp32s :: String -> Window -> SUN (Maybe [CLong])
 getProp32s str w = do { a <- getAtom str; getProp32 a w }
 
 focusTo :: Direction -> SUN ()
-focusTo dir = react $ getFocusScrDims >>= \(sw,sh) -> safeModify (tree . focusWS) $ changeFocus dir sw sh
+focusTo dir = react $ safeModify screens (changeFocus2 dir)
 
 spawnTerminal :: SUN ()
 spawnTerminal = asks (terminal . userConf) >>= spawn
@@ -429,19 +430,19 @@ moveWinToWS wsn = react $ (workspaces . focusScr) =. moveToWS wsn
 
 -- | Shift the currently focused window in the specified direction, placing
 -- it on top of whatever was already there.
-shift :: Direction -> SUN ()
-shift dir = do
-  inF <- gets (inFullScreen . focusWS)
-  unless inF $ react $ do
-    t <- gets (tree . focusWS)
-    (sw,sh) <- getFocusScrDims
-    let fw = fromFrame t
-        nw = fromFrame $ changeFocus dir sw sh t
-    when (nw /= fw && isJust fw) $ do
-      (tree . focusWS) =. replace Nothing
-      raiseHidden R
-      (tree . focusWS) =. (replace fw . changeFocus dir sw sh)
-      when (isJust nw) $ (hidden . focusWS) =. (fromJust nw :)
+--shift :: Direction -> SUN ()
+--shift dir = do
+--  inF <- gets (inFullScreen . focusWS)
+--  unless inF $ react $ do
+--    t <- gets (tree . focusWS)
+--    (sw,sh) <- getFocusScrDims
+--    let fw = fromFrame t
+--        nw = fromFrame $ changeFocus dir sw sh t
+--    when (nw /= fw && isJust fw) $ do
+--      (tree . focusWS) =. replace Nothing
+--      raiseHidden R
+--      (tree . focusWS) =. (replace fw . changeFocus dir sw sh)
+--      when (isJust nw) $ (hidden . focusWS) =. (fromJust nw :)
 
 -- | Grab prefix key and top-level bindings.
 grabPrefixTops :: SUN ()
@@ -510,6 +511,7 @@ eventDispatch !(UnmapEvent {ev_window = w, ev_send_event = synthetic}) = when sy
 eventDispatch !(MapRequestEvent {ev_window = win}) = react $ do
     dis <- asks display
     fw <- focusedWin
+    liftIO $ selectInput dis win clientMask
     allWins <- getAllWins
     isF <- isFullscreen win ; isDia <- isDialog win ; isS <- isSplash win
     isDk <- isDock win
@@ -530,7 +532,7 @@ eventDispatch !evt@(ConfigureRequestEvent _ _ _ dis _ win x y w h bw a d vm) = r
                  setConfigureEvent ev win win
                      (wa_x wa) (wa_y wa) (wa_width wa)
                      (wa_height wa) (ev_border_width evt) none
-                     (wa_override_redirect wa)
+                     (wa_override_redirect $ wa)
                  sendEvent dis win False 0 ev
     liftIO $ sync dis False
 
@@ -569,8 +571,14 @@ eventDispatch !evt@(KeyEvent {ev_event_type = et}) = when (et == keyPress) $ do
           (Just k) -> k
           Nothing -> return ()
 
+eventDispatch !evt@(CrossingEvent {ev_window = w, ev_mode = em, ev_event_type = et}) =
+    when (et == enterNotify && em == notifyNormal) $ react $ screens =. focusToWin w
+
 -- | Ignore all other event types for which we haven't defined specific behavior
 eventDispatch !_ = return ()
+
+clientMask :: EventMask
+clientMask = structureNotifyMask .|. enterWindowMask .|. propertyChangeMask
 
 sunwm :: UserConf -> IO (Either String ())
 sunwm !uc = do
@@ -578,14 +586,3 @@ sunwm !uc = do
     scrRecs <- getScreenInfo $ L.get display conf
     let st = initState (length $ L.get wsNames uc) scrRecs
     runSUN (initBars >> grabPrefixTops >> updateBars >> eventLoop) st conf
-
--- | dmenu spawner
-dmenu :: MonadIO m => String -> String -> String -> String -> String -> m ()
-dmenu fn nb nf sb sf = spawn $ concat
-      [ "dmenu_run "
-      , "-nb '" ++ nb ++ "' "
-      , "-nb '" ++ nb ++ "' "
-      , "-sb '" ++ sb ++ "' "
-      , "-sf '" ++ sf ++ "' "
-      , "-nf '" ++ nf ++ "' "
-      , "-fn '" ++ fn ++ "' "]

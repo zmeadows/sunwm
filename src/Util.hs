@@ -85,3 +85,16 @@ spawnPipe !x = do
         _ <- dupTo rd stdInput
         executeFile "/bin/sh" False ["-c", x] Nothing
     return h
+
+-- | dmenu spawner
+dmenu :: MonadIO m => String -> String -> String -> String -> String -> m ()
+dmenu fn nb nf sb sf = spawn $ concat
+      [ "dmenu_run "
+      , "-nb '" ++ nb ++ "' "
+      , "-nb '" ++ nb ++ "' "
+      , "-sb '" ++ sb ++ "' "
+      , "-sf '" ++ sf ++ "' "
+      , "-nf '" ++ nf ++ "' "
+      , "-fn '" ++ fn ++ "' "]
+
+
