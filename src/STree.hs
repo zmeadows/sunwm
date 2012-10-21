@@ -19,7 +19,7 @@ module STree where
 
 import FocusMap
 
-import Prelude hiding ((.), id)
+import Prelude hiding ((.))
 import Data.Label hiding (fw)
 import Data.List (minimumBy, delete, find, findIndex)
 import Data.Maybe
@@ -94,7 +94,7 @@ emptyScr !nws !(Rectangle x y w h) = SUNScreen wss x y w h 1 Nothing
     where wss = fromList 1 $ zip [1..nws] $ replicate nws emptyWS
 
 initState :: Int -> [Rectangle] -> SUNState
-initState !nw !recs = SUNState scrs False 0 1
+initState !nw !recs = SUNState scrs False 0 (if length recs > 1 then 2 else 1)
   where scrs = fromList 1 $ zip [1..length recs] $ map (emptyScr nw) recs
 
 walkTrail :: SUNPath -> SUNZipper -> SUNZipper
@@ -395,8 +395,8 @@ deleteWinWS w !ws = modify tree (deleteWinTree w) $ modify hidden (delete w) ws
 deleteWinScr :: Window -> SUNScreen -> SUNScreen
 deleteWinScr w = modify workspaces $ mapF $ deleteWinWS w
 
-annihilateWin :: Window -> SUNState -> SUNState
-annihilateWin w = modify screens $ mapF $ deleteWinScr w
+annihilateWin :: Window -> FocusMap Int SUNScreen -> FocusMap Int SUNScreen
+annihilateWin w = mapF (deleteWinScr w)
 
 -- | Switches view to another workspace.
 changeWorkspace :: Int -> SUNScreen -> SUNScreen
@@ -471,7 +471,10 @@ focusWS = lens getFocusWS setFocusWS
   where getFocusWS = focused . get (workspaces . focusScr)
         setFocusWS !ws = modify (workspaces . focusScr) (update ws)
 
-
+focusWSscr :: SUNScreen :-> Workspace
+focusWSscr = lens getFocusWSscr setFocusWSscr
+  where getFocusWSscr = focused . get workspaces
+        setFocusWSscr !ws = modify workspaces (update ws)
 
 -- | Moves the currently focused window to another workspace
 moveToWS :: Int -> FocusMap Int Workspace -> FocusMap Int Workspace
@@ -483,9 +486,28 @@ moveToWS nwsn m@(fwsn,_)
         m' = adjustK fwsn (cycleHidden R . modify tree clear) m
         sfw = fromFrame $ get tree $ m <!> nwsn
 
-{-
 moveToScr :: Int -> FocusMap Int SUNScreen -> FocusMap Int SUNScreen
 moveToScr nscn m@(fscn,scs)
-    | nscn == fscn ||
-  where fw =
--}
+    | nscn == fscn || isNothing fw = m
+    | otherwise = adjustK fscn (set focusWSscr ws') $ adjustK nscn (set focusWSscr ows') m
+  where ws = get focusWSscr $ focused m
+        ows = get focusWSscr $ m <!> nscn
+        fw = fromFrame $ get tree ws
+        ofw = fromFrame $ get tree ows
+        ws' = (cycleHidden R . modify tree clear) ws
+        ows' = modify tree (replace fw) $ modify hidden (maybeToList ofw ++) ows
+
+swap :: Direction -> FocusMap Int SUNScreen -> FocusMap Int SUNScreen
+swap dir m@(fscn,scs) =
+    adjustK nscn (modify (tree . focusWSscr) (replace fw))
+    $ changeFocus2 dir
+    $ adjustK fscn (modify (tree . focusWSscr) (replace nw))
+    $ (if (isJust nw) then (annihilateWin $ fromJust nw) else id)
+    $ (if (isJust fw) then (annihilateWin $ fromJust fw) else id) m
+  where m'@(nscn,_) = changeFocus2 dir m
+        nw = fromFrame $ get (tree . focusWSscr) $ focused m'
+        fw = fromFrame $ get (tree . focusWSscr) $ focused m
+
+
+
+

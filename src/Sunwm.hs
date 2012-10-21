@@ -65,12 +65,12 @@ defaultKeys = M.fromList
     , ((0, xK_n), splitH 0.5 >> focusTo D)
     , ((shiftMask, xK_n), splitH 0.65 >> focusTo D)
 --    , ((mod1Mask,  xK_n), splitH 0.35 >> focusTo D >> swap U)
-    , ((0, xK_p),  dmenu "-*-tamsyn-medium-*-*-*-14-*-*-*-*-*-*-*"
+    , ((0, xK_p),  dmenu "-*-terminus-medium-*-*-*-12-*-*-*-*-*-iso8859-1"
                          "#222222" "#f8f8f8" "#753E80" "#222222")
---    , ((shiftMask, xK_h), swap L)
---    , ((shiftMask, xK_l), swap R)
---    , ((shiftMask, xK_k), swap U)
- --   , ((shiftMask, xK_j), swap D)
+    , ((shiftMask, xK_h), swapToDir L)
+    , ((shiftMask, xK_l), swapToDir R)
+    , ((shiftMask, xK_k), swapToDir U)
+    , ((shiftMask, xK_j), swapToDir D)
     --, ((0, xK_f), toggleFullScreen)
         , ((0, xK_o), raiseHidden R)
     , ((0, xK_i), raiseHidden L)
@@ -96,14 +96,20 @@ defaultTopKeys = M.fromList $
     , ((mod1Mask .|. shiftMask, xK_l), resizeFrame R 0.02)
     , ((mod1Mask .|. shiftMask, xK_h), resizeFrame L 0.02)
     , ((mod4Mask, xK_Tab), toggleScr)
+    , ((mod4Mask .|. shiftMask, xK_2), moveWinToScr 2)
     , ((mod1Mask, xK_Tab), toggleWS)
     , ((mod1Mask .|. shiftMask, xK_q), quit)
-    ] ++ workspaceSendBinds ++ workspaceMoveBinds ++ screenMoveBinds
+    ] ++ workspaceSendBinds ++ workspaceMoveBinds
+      ++ screenMoveBinds    ++ screenSendBinds
 
 -- | TODO: make sure this doesn't try to switch to non-existent screens?
 -- just make user assign prefix to screen mov ebut assign binds in init
 screenMoveBinds :: [((KeyMask, KeySym),SUN ())]
 screenMoveBinds = map (\(k,n) -> ((mod4Mask, k), changeScr n))
+                     $ zip [xK_1..] [1..2]
+
+screenSendBinds :: [((KeyMask, KeySym),SUN ())]
+screenSendBinds = map (\(k,n) -> ((mod4Mask .|. shiftMask, k), moveWinToScr n))
                      $ zip [xK_1..] [1..2]
 
 workspaceMoveBinds :: [((KeyMask, KeySym),SUN ())]

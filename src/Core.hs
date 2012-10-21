@@ -265,13 +265,8 @@ react :: SUN () -> SUN ()
 react sun = sun >> arrange >> refresh >> updateFocus >> updateBars
 
 -- | Swap the content (empty or not) of two adjacent frames in specified direction.
---swap :: Direction -> SUN ()
---swap dir = react $ do
---    t <- gets (tree . focusWS)
---    (sw,sh) <- getFocusScrDims
---    let fw = fromFrame t
---        nw = fromFrame $ changeFocus dir sw sh t
---    when (nw /= fw) $ safeModify (tree . focusWS) (replace fw . changeFocus dir sw sh . replace nw)
+swapToDir :: Direction -> SUN ()
+swapToDir dir = react $ screens =. swap dir
 
 -- | Make sure a function that modifies state meets certain criteria before
 -- actually applying it.  (ex: doesn't create exceedingly small windows)
@@ -305,6 +300,7 @@ quit :: SUN ()
 quit = liftIO exitSuccess
 
 -- | Remove every frame but the one currently focused
+--  TODO: this causing fast map/remap high cpu bug?
 only :: SUN ()
 only = react $ do
   aws <- getScrAllWins <$> gets focusScr
@@ -325,12 +321,13 @@ removeWindow :: Window -> SUN ()
 removeWindow w = react $ do
   fw <- focusedWin
   when (isJust fw) $ when (fromJust fw == w) $ raiseHidden R
-  modify (annihilateWin w)
+  screens =. (annihilateWin w)
   inF <- gets (inFullScreen . focusWS)
   when inF $ (inFullScreen . focusWS) =: False
 
 -- | Remove windows from workspaces when they don't actually exist according to X11.
 -- | TODO: make sure queryTree gets windows on all screens
+-- this is broken at the moment
 killGhostWins :: SUN ()
 killGhostWins = do
   dis <- asks display
@@ -420,7 +417,11 @@ getProp32s :: String -> Window -> SUN (Maybe [CLong])
 getProp32s str w = do { a <- getAtom str; getProp32 a w }
 
 focusTo :: Direction -> SUN ()
-focusTo dir = react $ safeModify screens (changeFocus2 dir)
+focusTo dir = react $ do
+    pscr <- fst <$> gets screens
+    safeModify screens (changeFocus2 dir)
+    nscr <- fst <$> gets screens
+    when (pscr /= nscr) $ lastScr =: pscr
 
 spawnTerminal :: SUN ()
 spawnTerminal = asks (terminal . userConf) >>= spawn
@@ -428,21 +429,23 @@ spawnTerminal = asks (terminal . userConf) >>= spawn
 moveWinToWS :: Int -> SUN ()
 moveWinToWS wsn = react $ (workspaces . focusScr) =. moveToWS wsn
 
+moveWinToScr :: Int -> SUN ()
+moveWinToScr scn = react $ screens =. moveToScr scn
+
 -- | Shift the currently focused window in the specified direction, placing
 -- it on top of whatever was already there.
---shift :: Direction -> SUN ()
---shift dir = do
---  inF <- gets (inFullScreen . focusWS)
---  unless inF $ react $ do
---    t <- gets (tree . focusWS)
---    (sw,sh) <- getFocusScrDims
---    let fw = fromFrame t
---        nw = fromFrame $ changeFocus dir sw sh t
---    when (nw /= fw && isJust fw) $ do
---      (tree . focusWS) =. replace Nothing
---      raiseHidden R
---      (tree . focusWS) =. (replace fw . changeFocus dir sw sh)
---      when (isJust nw) $ (hidden . focusWS) =. (fromJust nw :)
+-- shift :: Direction -> SUN ()
+-- shift dir = do
+--   inF <- gets (inFullScreen . focusWS)
+--   unless inF $ react $ do
+--     t <- gets (tree . focusWS)
+--     let fw = fromFrame t
+--         nw = fromFrame $ changeFocus2 dir
+--     when (nw /= fw && isJust fw) $ do
+--       (tree . focusWS) =. replace Nothing
+--       raiseHidden R
+--       (tree . focusWS) =. (replace fw . changeFocus2 dir)
+--       when (isJust nw) $ (hidden . focusWS) =. (fromJust nw :)
 
 -- | Grab prefix key and top-level bindings.
 grabPrefixTops :: SUN ()
@@ -472,6 +475,7 @@ initBars = do
        mapM assocHandle $ zip screenNumList barHandles
        liftIO $ threadDelay 100000
        dis <- asks display ; rt <- asks root
+       -- TODO: make sure we're getting the height of xmobar and not some other dock
        (_,_,qt) <- liftIO $ queryTree dis rt
        qt' <- filterM isDock qt
        bwa <- liftIO $ getWindowAttributes dis (head qt')
@@ -578,7 +582,7 @@ eventDispatch !evt@(CrossingEvent {ev_window = w, ev_mode = em, ev_event_type = 
 eventDispatch !_ = return ()
 
 clientMask :: EventMask
-clientMask = structureNotifyMask .|. enterWindowMask .|. propertyChangeMask
+clientMask = enterWindowMask .|. propertyChangeMask
 
 sunwm :: UserConf -> IO (Either String ())
 sunwm !uc = do
