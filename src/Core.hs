@@ -225,6 +225,7 @@ updateFocusN scrn = do
         tl = L.get (trail . tree) fwks
 
     ioMap_ unFocus ws
+
     case fw of
       Just w -> do
         if null tl
@@ -469,7 +470,6 @@ initBars = do
    when barEnabled $ do
        screenNumList <- keys <$> gets screens
        barHandles <- ioMap (\sn -> spawnPipe $ "xmobar -o -x " ++ sn) $ map (\n -> show (n - 1))screenNumList
-       liftIO $ threadDelay 200000
        --  TODO: check if launch of xmobar fails
        let assocHandle (scrNum,h) = (barHandle . screenN scrNum) =: Just h
        mapM assocHandle $ zip screenNumList barHandles

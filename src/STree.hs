@@ -489,7 +489,7 @@ moveToWS nwsn m@(fwsn,_)
 moveToScr :: Int -> FocusMap Int SUNScreen -> FocusMap Int SUNScreen
 moveToScr nscn m@(fscn,scs)
     | nscn == fscn || isNothing fw = m
-    | otherwise = adjustK fscn (set focusWSscr ws') $ adjustK nscn (set focusWSscr ows') m
+    | otherwise = newFocus nscn $ adjustK fscn (set focusWSscr ws') $ adjustK nscn (set focusWSscr ows') m
   where ws = get focusWSscr $ focused m
         ows = get focusWSscr $ m <!> nscn
         fw = fromFrame $ get tree ws
@@ -507,7 +507,3 @@ swap dir m@(fscn,scs) =
   where m'@(nscn,_) = changeFocus2 dir m
         nw = fromFrame $ get (tree . focusWSscr) $ focused m'
         fw = fromFrame $ get (tree . focusWSscr) $ focused m
-
-
-
-

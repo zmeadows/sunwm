@@ -96,7 +96,6 @@ defaultTopKeys = M.fromList $
     , ((mod1Mask .|. shiftMask, xK_l), resizeFrame R 0.02)
     , ((mod1Mask .|. shiftMask, xK_h), resizeFrame L 0.02)
     , ((mod4Mask, xK_Tab), toggleScr)
-    , ((mod4Mask .|. shiftMask, xK_2), moveWinToScr 2)
     , ((mod1Mask, xK_Tab), toggleWS)
     , ((mod1Mask .|. shiftMask, xK_q), quit)
     ] ++ workspaceSendBinds ++ workspaceMoveBinds
