@@ -431,7 +431,13 @@ moveWinToWS :: Int -> SUN ()
 moveWinToWS wsn = react $ (workspaces . focusScr) =. moveToWS wsn
 
 moveWinToScr :: Int -> SUN ()
-moveWinToScr scn = react $ screens =. moveToScr scn
+moveWinToScr scn = do
+    dis <- asks display
+    aws <- getAllWins
+    ioMap_ (\w -> selectInput dis w 0) aws
+    react $ screens =. moveToScr scn
+    ioMap_ (\w -> selectInput dis w clientMask) aws
+
 
 -- | Shift the currently focused window in the specified direction, placing
 -- it on top of whatever was already there.
