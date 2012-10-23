@@ -26,6 +26,7 @@ import Data.Maybe
 import Data.Ord (comparing)
 import System.IO (Handle)
 
+import Control.Applicative((<$>))
 import Control.Category ((.))
 --import Control.Arrow (first, second, (&&&))
 
@@ -54,6 +55,13 @@ data Workspace = Workspace
     , _inFullScreen :: !Bool
     } deriving (Show,Eq)
 
+data FocusHistory = FocusHistory
+    { _lastLeft  :: Maybe Window
+    , _lastRight :: Maybe Window
+    , _lastUp    :: Maybe Window
+    , _lastDown  :: Maybe Window
+    } deriving (Show, Eq)
+
 data SUNScreen = SUNScreen
     { _workspaces   :: !(FocusMap Int Workspace)
     , _xPos         :: !Position
@@ -69,8 +77,8 @@ data SUNState = SUNState
     , _inPrefix     :: !Bool
     , _barHeight    :: !Dimension
     , _lastScr      :: !Int
+    , _focusHistory :: !FocusHistory
     } deriving (Show,Eq)
-
 
 data Direction = L | R | U | D
     deriving (Show,Eq)
@@ -93,8 +101,10 @@ emptyScr :: Int -> Rectangle -> SUNScreen
 emptyScr !nws !(Rectangle x y w h) = SUNScreen wss x y w h 1 Nothing
     where wss = fromList 1 $ zip [1..nws] $ replicate nws emptyWS
 
+initFocusHistory = FocusHistory Nothing Nothing Nothing Nothing
+
 initState :: Int -> [Rectangle] -> SUNState
-initState !nw !recs = SUNState scrs False 0 (if length recs > 1 then 2 else 1)
+initState !nw !recs = SUNState scrs False 0 (if length recs > 1 then 2 else 1) initFocusHistory
   where scrs = fromList 1 $ zip [1..length recs] $ map (emptyScr nw) recs
 
 walkTrail :: SUNPath -> SUNZipper -> SUNZipper
@@ -264,6 +274,27 @@ screenOfWin win q@(fsn,scrs) =
     let ts = mapElems flattenGlobalToZips q
     in fmap ((+) 1) $ findIndex (\zs -> elem (Just win) (map fromFrame zs)) ts
 
+pointInRect :: (Position, Position) -> (Position,Position,Dimension,Dimension) -> Bool
+pointInRect (x,y) (x',y',w',h') = (x >= x') && (x <= x' + fip w') && (y >= y') && (y <= y' + fip h')
+
+screenOfPoint (x,y) q@(fsn,scrs) = ((+) 1) <$> findIndex (\scrRec -> pointInRect (x,y) scrRec) scrRecs
+  where scrToRec scr = (get xPos scr, get yPos scr, get width scr, get height scr)
+        scrRecs = mapElems scrToRec q
+
+focusToFrameAt :: (Position,Position) -> FocusMap Int SUNScreen -> FocusMap Int SUNScreen
+focusToFrameAt (x,y) q@(fsn,scrs)
+    | nscrn == Nothing = q
+    | otherwise =
+        let nscrs = newFocus (fromJust nscrn) q
+            wss = get workspaces $ focused nscrs
+            zs = filter ((== Nothing) . fromFrame . snd) $ flattenGlobal $ focused nscrs
+            fzs = find (\((x',y',w',h'),_) -> pointInRect (x,y) (x',y',w',h')) zs
+            wss' = adjust (set tree $ snd $ fromJust fzs) wss
+            nscrs' = adjust (set workspaces wss') nscrs
+        in if (isJust fzs) then nscrs' else q
+  where nscrn = screenOfPoint (x,y) q
+
+
 focusToWin :: Window -> FocusMap Int SUNScreen -> FocusMap Int SUNScreen
 focusToWin win q@(fsn,scrs)
     | nscrn == Nothing = q
@@ -305,7 +336,6 @@ changeFocus2 dir q@(fsn,scrs)
           U -> min (abs ((x + fip h)-(x' + fip w'))) (abs (x - x'))
           D -> min (abs ((x + fip h)-(x' + fip w'))) (abs (x - x'))
         focusCand = minimumBy (comparing (finder' . fst)) cands
-
 
 -- | Searches for the windows 'closest' to the specified direction
 changeFocus :: Direction -> Dimension -> Dimension -> SUNZipper -> SUNZipper
@@ -507,3 +537,27 @@ swap dir m@(fscn,scs) =
   where m'@(nscn,_) = changeFocus2 dir m
         nw = fromFrame $ get (tree . focusWSscr) $ focused m'
         fw = fromFrame $ get (tree . focusWSscr) $ focused m
+
+shift :: Direction -> FocusMap Int SUNScreen -> FocusMap Int SUNScreen
+shift dir m@(fscn, scs)
+    | fw == Nothing || nw == Nothing && fw == Nothing = changeFocus2 dir m
+    | nw == fw = m
+    | otherwise =
+        adjustK nscn (modify (tree . focusWSscr) (replace fw))
+        $ changeFocus2 dir
+        $ adjustK nscn (modify (hidden . focusWSscr) (maybeToList nw ++))
+        $ adjustK fscn (modify focusWSscr (cycleHidden R))
+        $ (if (isJust nw) then (annihilateWin $ fromJust nw) else id)
+        $ (if (isJust fw) then (annihilateWin $ fromJust fw) else id) m
+  where m'@(nscn,_) = changeFocus2 dir m
+        nw = fromFrame $ get (tree . focusWSscr) $ focused m'
+        fw = fromFrame $ get (tree . focusWSscr) $ focused m
+
+only :: Workspace -> Workspace
+only ws =
+    let fw = fromFrame $ get tree ws
+        aws = getWSAllWins ws
+        nhs = if fw == Nothing then aws else delete (fromJust fw) aws
+    in set hidden nhs $ set tree (SZ (Frame fw) []) ws
+
+

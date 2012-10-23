@@ -21,7 +21,7 @@ import qualified Data.Label as L
 import Data.Label.PureM ((=:),(=.),gets,asks)
 import Data.Map (Map)
 import qualified Data.Map as M
-import Data.Bits
+import Data.Bits hiding (shift)
 
 import Graphics.X11.Xlib hiding (refreshKeyboardMapping)
 import Graphics.X11.Xlib.Extras
@@ -302,19 +302,8 @@ quit = liftIO exitSuccess
 
 -- | Remove every frame but the one currently focused
 --  TODO: this causing fast map/remap high cpu bug?
-only :: SUN ()
-only = react $ do
-  aws <- getScrAllWins <$> gets focusScr
-  fw <- focusedWin
-  inF <- gets (inFullScreen . focusWS)
-  unless inF $ do
-    when (isJust fw) $ do
-      focus . tree . focusWS =: Frame fw
-      hidden . focusWS =: delete (fromJust fw) aws
-    when (isNothing fw) $ do
-      focus . tree . focusWS =: Frame Nothing
-      hidden . focusWS =: aws
-    trail . tree . focusWS =: []
+makeOnly :: SUN ()
+makeOnly = react $ focusWS =. only
 
 -- | Kills the current window (floating or not) and
 -- removes all traces of it from SUNState
@@ -424,6 +413,13 @@ focusTo dir = react $ do
     nscr <- fst <$> gets screens
     when (pscr /= nscr) $ lastScr =: pscr
 
+shiftTo :: Direction -> SUN ()
+shiftTo dir = react $ do
+    pscr <- fst <$> gets screens
+    safeModify screens (shift dir)
+    nscr <- fst <$> gets screens
+    when (pscr /= nscr) $ lastScr =: pscr
+
 spawnTerminal :: SUN ()
 spawnTerminal = asks (terminal . userConf) >>= spawn
 
@@ -474,12 +470,14 @@ initBars = do
    barEnabled <- isJust <$> asks (barConf . userConf)
    -- TODO: check if xmobar is in PATH
    when barEnabled $ do
+       liftIO $ threadDelay 100000
        screenNumList <- keys <$> gets screens
        barHandles <- ioMap (\sn -> spawnPipe $ "xmobar -o -x " ++ sn) $ map (\n -> show (n - 1))screenNumList
        --  TODO: check if launch of xmobar fails
        let assocHandle (scrNum,h) = (barHandle . screenN scrNum) =: Just h
        mapM assocHandle $ zip screenNumList barHandles
-       liftIO $ threadDelay 100000
+       -- find a way to do this without threadelay
+       liftIO $ threadDelay 600000
        dis <- asks display ; rt <- asks root
        -- TODO: make sure we're getting the height of xmobar and not some other dock
        (_,_,qt) <- liftIO $ queryTree dis rt
@@ -583,6 +581,7 @@ eventDispatch !evt@(KeyEvent {ev_event_type = et}) = when (et == keyPress) $ do
 
 eventDispatch !evt@(CrossingEvent {ev_window = w, ev_mode = em, ev_event_type = et}) =
     when (et == enterNotify && em == notifyNormal) $ react $ screens =. focusToWin w
+
 
 -- | Ignore all other event types for which we haven't defined specific behavior
 eventDispatch !_ = return ()
