@@ -7,8 +7,7 @@ import FocusMap
 
 import Prelude hiding ((.), id)
 import Control.Category ((.))
-import Data.Maybe
-import Data.List ((\\), find, delete, intercalate)
+
 import Control.Applicative
 import Control.Arrow
 import Control.Monad.State.Strict hiding (gets)
@@ -16,9 +15,11 @@ import Control.Monad.Reader hiding (asks)
 import Control.Monad.Error
 import Control.Concurrent (threadDelay)
 
+import Data.Maybe
+import Data.List ((\\), find, delete, intercalate)
 import Data.Label ((:->))
-import qualified Data.Label as L
 import Data.Label.PureM ((=:),(=.),gets,asks)
+import qualified Data.Label as L
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Bits hiding (shift)
@@ -32,8 +33,6 @@ import Foreign.C.Types (CLong)
 import System.IO
 import System.Exit
 
--- data MouseFocusStyle = None | Click | Follow
-
 data UserConf = UserConf
     { _normalBorder  :: !String
     , _focusedBorder :: !String
@@ -45,6 +44,8 @@ data UserConf = UserConf
     , _barConf       :: !(Maybe BarConf)
     , _terminal      :: !String
     }
+
+-- data MouseFocusStyle = None | Click | Follow
 
 data BarConf = BarConf
     { _focusColor       :: !(String, String)
@@ -78,11 +79,18 @@ banish = do
     rt      <- asks root
     bh      <- fip <$> gets barHeight
     (sw,sh) <- getFocusScrDims
-    liftIO $ warpPointer dis none rt 0 0 0 0 (fi sw) $ fi sh + bh
+    (x,y)   <- getFocusScrPos
+    return ()
 
 -- | Gives the dimensions of the currently focused screen
 getFocusScrDims :: SUN (Dimension,Dimension)
 getFocusScrDims = (L.get width &&& L.get height) <$> gets focusScr
+
+-- | Gives the position of the currently focused screen
+getFocusScrPos :: SUN (Position,Position)
+getFocusScrPos = (L.get xPos &&& L.get yPos) <$> gets focusScr
+
+
 
 -- | Does basic Xlib setup and generates a SUNConf object based on
 -- user-specified settings in a UserConf.
@@ -136,7 +144,6 @@ arrangeN n = asks display >>= \dis -> do
 -- or does x11 already account for this?
 refresh :: SUN ()
 refresh = do
-    --killGhostWins
     dis <- asks display
     scrs <- elems <$> gets screens
     let vs = concatMap getScrVisWins scrs
@@ -269,6 +276,8 @@ react sun = sun >> arrange >> refresh >> updateFocus >> updateBars
 swapToDir :: Direction -> SUN ()
 swapToDir dir = react $ screens =. swap dir
 
+swapWStoScr n = react $ screens =. swapWSscr n
+
 -- | Make sure a function that modifies state meets certain criteria before
 -- actually applying it.  (ex: doesn't create exceedingly small windows)
 -- Basically, this prevents the user from doing stupid things.
@@ -317,7 +326,7 @@ removeWindow w = react $ do
 
 -- | Remove windows from workspaces when they don't actually exist according to X11.
 -- | TODO: make sure queryTree gets windows on all screens
--- this is broken at the moment
+-- this is broken at the moment! no idea why.
 killGhostWins :: SUN ()
 killGhostWins = do
   dis <- asks display
@@ -470,9 +479,9 @@ initBars = do
    barEnabled <- isJust <$> asks (barConf . userConf)
    -- TODO: check if xmobar is in PATH
    when barEnabled $ do
-       liftIO $ threadDelay 100000
+       liftIO $ threadDelay 400000
        screenNumList <- keys <$> gets screens
-       barHandles <- ioMap (\sn -> spawnPipe $ "xmobar -o -x " ++ sn) $ map (\n -> show (n - 1))screenNumList
+       barHandles <- ioMap (\sn -> spawnPipe $ "xmobar -x " ++ sn) $ map (\n -> show (n - 1))screenNumList
        --  TODO: check if launch of xmobar fails
        let assocHandle (scrNum,h) = (barHandle . screenN scrNum) =: Just h
        mapM assocHandle $ zip screenNumList barHandles
@@ -582,12 +591,13 @@ eventDispatch !evt@(KeyEvent {ev_event_type = et}) = when (et == keyPress) $ do
 eventDispatch !evt@(CrossingEvent {ev_window = w, ev_mode = em, ev_event_type = et}) =
     when (et == enterNotify && em == notifyNormal) $ react $ screens =. focusToWin w
 
+-- eventDispatch !evt@(PropertyEvent {}) = react $ (liftIO $ print "property nofity occured") >> updateBars
 
 -- | Ignore all other event types for which we haven't defined specific behavior
 eventDispatch !_ = return ()
 
 clientMask :: EventMask
-clientMask = enterWindowMask .|. propertyChangeMask
+clientMask = enterWindowMask -- .|. propertyChangeMask
 
 sunwm :: UserConf -> IO (Either String ())
 sunwm !uc = do

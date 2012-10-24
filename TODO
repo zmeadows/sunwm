@@ -5,10 +5,9 @@
 $   := future ideas not yet made concrete in any way
 
 
+***: don't remap windows after focus notify (just change focus and update borders)
 
 ***: clean up bar code and factor out baroutput class to make it easy to use different bars (dzen2/xmonad/etc)
-
-***: write function to send window to other monitors (shift+win+num) (seriously why haven't i done this yet?)
 
 ***: make sure binds relating to multiple screens are only made for existing screens
 
@@ -16,18 +15,25 @@ $   := future ideas not yet made concrete in any way
 
 **: add different methods of mouse focusing windows (sloppy, click, none)
 
-**: fix unintended interaction between sloppy mouse focus and workspace changing
+**: fix unintended interaction between sloppy mouse focus and workspace changing (simple fix, implement bypasssloppytemp function)
 
-*: refresh/arrange annoyance (barely noticeable window stuttering) bug (seemst to be fixed now?)
+**: let user set how long title cutoff will be
+
+**: make sure bars are not reporting 'enter notify' events. (not certain this is the best way to go about it)
 
 *: go through functions and rename variables to something more sane
 
+**: fix banish (make work right with multiple screens)
+
+
+
 $$: remember last frame focused when switching frames (as in i3-wm)
 $$$: move mouse cursor to focused screens when changing screen
-$$: add support for floating windows (behavior same as xmonad/dwm) (code for this exists in alpha versions of sunwm)
+$$: add support for floating windows (behavior same as xmonad/dwm) (code for this exists in alpha versions of sunwm) (this makes the code wayyyyy more complicated, is it worth it?)
 $: visuals to make clear which monitor is focused (change color in bar? blink frame when switching monitors?)
 $: write test suite (hunit, quickcheck?)
-$: command-line input (like ratpoison's 'colon' command) (is this really necessary or just really cool? or both? ...or neither?)
-$: hide windows and display only frame borders during resize? (like stumpwm)
 $: undo system like ratpoison (code for this exists in sunwm alpha code)
 $: add support for user-defined hooks (like stumpwm)
+
+DONE:
+***: write function to send window to other monitors (shift+win+num) (seriously why haven't i done this yet?)

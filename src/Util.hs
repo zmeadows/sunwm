@@ -90,6 +90,7 @@ spawnPipe !x = do
 dmenu :: MonadIO m => String -> String -> String -> String -> String -> m ()
 dmenu fn nb nf sb sf = spawn $ concat
       [ "dmenu_run "
+      , "-l 10 "
       , "-nb '" ++ nb ++ "' "
       , "-nb '" ++ nb ++ "' "
       , "-sb '" ++ sb ++ "' "

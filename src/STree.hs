@@ -560,4 +560,10 @@ only ws =
         nhs = if fw == Nothing then aws else delete (fromJust fw) aws
     in set hidden nhs $ set tree (SZ (Frame fw) []) ws
 
+swapWSscr nscn m@(fscn,scs) =
+    let fws = get focusWSscr $ focused m
+        ows = get focusWSscr $ m <!> nscn
+    in adjustK fscn (set focusWSscr ows) $ adjustK nscn (set focusWSscr fws) m
+
+
 

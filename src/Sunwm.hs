@@ -30,10 +30,10 @@ main = sunwm defaultConfig >>= print
 
 myBarConf :: Maybe BarConf
 myBarConf = Just BarConf {
-    _focusColor       = ("#222222", "#fe653b"),
+    _focusColor       = ("#222222", "#674D7A"),
     _hiddenColor      = ("#f8f8f8", "#222222"),
     _hiddenEmptyColor = ("#8f8f8f", "#222222"),
-    _titleColor       = ("#f8f8f8", "#222222")
+    _titleColor       = ("#674D7A", "#222222")
     }
 
 workspaceNames:: [String]
@@ -43,7 +43,7 @@ workspaceNames = map show ([1..9] :: [Int])
 defaultConfig :: UserConf
 defaultConfig = UserConf {
     _normalBorder  = "rgb:4f/4f/4f",
-    _focusedBorder = "rgb:fe/65/3b",
+    _focusedBorder = "rgb:67/4d/7a",
     _borderWidth   = 1,
     _keyBinds      = defaultKeys,
     _topKeyBinds   = defaultTopKeys,
@@ -66,7 +66,7 @@ defaultKeys = M.fromList
     , ((shiftMask, xK_n), splitH 0.65 >> focusTo D)
     , ((mod1Mask,  xK_n), splitH 0.35 >> focusTo D >> swapToDir U)
     , ((0, xK_p),  dmenu "-*-terminus-medium-*-*-*-12-*-*-*-*-*-iso8859-1"
-                         "#222222" "#f8f8f8" "#fe653b" "#222222")
+                         "#222222" "#f8f8f8" "#674D7A" "#222222")
     , ((shiftMask, xK_h), swapToDir L)
     , ((shiftMask, xK_l), swapToDir R)
     , ((shiftMask, xK_k), swapToDir U)
@@ -99,12 +99,16 @@ defaultTopKeys = M.fromList $
     , ((mod1Mask, xK_Tab), toggleWS)
     , ((mod1Mask .|. shiftMask, xK_q), quit)
     ] ++ workspaceSendBinds ++ workspaceMoveBinds
-      ++ screenMoveBinds    ++ screenSendBinds
+      ++ screenMoveBinds    ++ screenSendBinds ++ screenSwapBinds
 
 -- | TODO: make sure this doesn't try to switch to non-existent screens?
 -- just make user assign prefix to screen mov ebut assign binds in init
 screenMoveBinds :: [((KeyMask, KeySym),SUN ())]
 screenMoveBinds = map (\(k,n) -> ((mod4Mask, k), changeScr n))
+                     $ zip [xK_1..] [1..2]
+
+screenSwapBinds :: [((KeyMask, KeySym),SUN ())]
+screenSwapBinds = map (\(k,n) -> ((mod4Mask .|. controlMask, k), swapWStoScr n))
                      $ zip [xK_1..] [1..2]
 
 screenSendBinds :: [((KeyMask, KeySym),SUN ())]
