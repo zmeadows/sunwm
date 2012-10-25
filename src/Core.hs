@@ -109,8 +109,7 @@ setup !uc = do
             else return (0 :: KeyMask)
           | (m, kcs) <- ms, kc <- kcs, kc /= 0]
   selectInput dis defRt $ substructureRedirectMask .|. substructureNotifyMask .|.
-                          structureNotifyMask .|. buttonPressMask .|. buttonReleaseMask
-                          .|. enterWindowMask .|. leaveWindowMask
+                          structureNotifyMask -- .|. buttonPressMask .|. buttonReleaseMask
   liftIO $ ungrabButton dis anyButton anyModifier defRt
   liftIO $ ungrabKey dis anyKey anyModifier defRt
   xSetErrorHandler
@@ -589,7 +588,9 @@ eventDispatch !evt@(KeyEvent {ev_event_type = et}) = when (et == keyPress) $ do
           Nothing -> return ()
 
 eventDispatch !evt@(CrossingEvent {ev_window = w, ev_mode = em, ev_event_type = et}) =
-    when (et == enterNotify && em == notifyNormal) $ react $ screens =. focusToWin w
+    when (et == enterNotify && em == notifyNormal) $ do
+    aws <- getAllWins
+    when (w `elem` aws) $ react $ screens =. focusToWin w
 
 -- eventDispatch !evt@(PropertyEvent {}) = react $ (liftIO $ print "property nofity occured") >> updateBars
 
