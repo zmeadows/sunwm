@@ -30,10 +30,10 @@ main = sunwm defaultConfig >>= print
 
 myBarConf :: Maybe BarConf
 myBarConf = Just BarConf {
-    _focusColor       = ("#222222", "#674D7A"),
+    _focusColor       = ("#222222", "#dddd77"),
     _hiddenColor      = ("#f8f8f8", "#222222"),
     _hiddenEmptyColor = ("#8f8f8f", "#222222"),
-    _titleColor       = ("#674D7A", "#222222")
+    _titleColor       = ("#dddd77", "#222222")
     }
 
 workspaceNames:: [String]
@@ -43,7 +43,7 @@ workspaceNames = map show ([1..9] :: [Int])
 defaultConfig :: UserConf
 defaultConfig = UserConf {
     _normalBorder  = "rgb:4f/4f/4f",
-    _focusedBorder = "rgb:67/4d/7a",
+    _focusedBorder = "rgb:dd/dd/77",
     _borderWidth   = 1,
     _keyBinds      = defaultKeys,
     _topKeyBinds   = defaultTopKeys,
@@ -66,7 +66,7 @@ defaultKeys = M.fromList
     , ((shiftMask, xK_n), splitH 0.65 >> focusTo D)
     , ((mod1Mask,  xK_n), splitH 0.35 >> focusTo D >> swapToDir U)
     , ((0, xK_p),  dmenu "-*-terminus-medium-*-*-*-12-*-*-*-*-*-iso8859-1"
-                         "#222222" "#f8f8f8" "#674D7A" "#222222")
+                         "#222222" "#f8f8f8" "#dddd77" "#222222")
     , ((shiftMask, xK_h), swapToDir L)
     , ((shiftMask, xK_l), swapToDir R)
     , ((shiftMask, xK_k), swapToDir U)

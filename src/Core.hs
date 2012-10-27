@@ -275,7 +275,7 @@ react sun = sun >> arrange >> refresh >> updateFocus >> updateBars
 swapToDir :: Direction -> SUN ()
 swapToDir dir = react $ screens =. swap dir
 
-swapWStoScr n = react $ screens =. swapWSscr n
+swapWStoScr n = sloppyGuard $ react $ screens =. swapWSscr n
 
 -- | Make sure a function that modifies state meets certain criteria before
 -- actually applying it.  (ex: doesn't create exceedingly small windows)
@@ -365,7 +365,7 @@ raiseHidden dir = react $ focusWS =. cycleHidden dir
 
 -- | Switch to another workspace
 changeWS :: Int -> SUN ()
-changeWS wsn = react $ do
+changeWS wsn = sloppyGuard $ react $ do
   fwsn <- fst <$> gets (workspaces . focusScr)
   when (fwsn /= wsn) $ do
     (lastWS . focusScr) =: fwsn
@@ -435,28 +435,15 @@ moveWinToWS :: Int -> SUN ()
 moveWinToWS wsn = react $ (workspaces . focusScr) =. moveToWS wsn
 
 moveWinToScr :: Int -> SUN ()
-moveWinToScr scn = do
+moveWinToScr scn = sloppyGuard $ react $ screens =. moveToScr scn
+
+sloppyGuard :: SUN () -> SUN ()
+sloppyGuard sun = do
     dis <- asks display
     aws <- getAllWins
     ioMap_ (\w -> selectInput dis w 0) aws
-    react $ screens =. moveToScr scn
+    sun
     ioMap_ (\w -> selectInput dis w clientMask) aws
-
-
--- | Shift the currently focused window in the specified direction, placing
--- it on top of whatever was already there.
--- shift :: Direction -> SUN ()
--- shift dir = do
---   inF <- gets (inFullScreen . focusWS)
---   unless inF $ react $ do
---     t <- gets (tree . focusWS)
---     let fw = fromFrame t
---         nw = fromFrame $ changeFocus2 dir
---     when (nw /= fw && isJust fw) $ do
---       (tree . focusWS) =. replace Nothing
---       raiseHidden R
---       (tree . focusWS) =. (replace fw . changeFocus2 dir)
---       when (isJust nw) $ (hidden . focusWS) =. (fromJust nw :)
 
 -- | Grab prefix key and top-level bindings.
 grabPrefixTops :: SUN ()
@@ -589,16 +576,16 @@ eventDispatch !evt@(KeyEvent {ev_event_type = et}) = when (et == keyPress) $ do
 
 eventDispatch !evt@(CrossingEvent {ev_window = w, ev_mode = em, ev_event_type = et}) =
     when (et == enterNotify && em == notifyNormal) $ do
-    aws <- getAllWins
-    when (w `elem` aws) $ react $ screens =. focusToWin w
+      aws <- getAllWins
+      when (w `elem` aws) $ react $ screens =. focusToWin w
 
--- eventDispatch !evt@(PropertyEvent {}) = react $ (liftIO $ print "property nofity occured") >> updateBars
+eventDispatch !evt@(PropertyEvent {}) = updateBars
 
 -- | Ignore all other event types for which we haven't defined specific behavior
 eventDispatch !_ = return ()
 
 clientMask :: EventMask
-clientMask = enterWindowMask -- .|. propertyChangeMask
+clientMask = propertyChangeMask .|. enterWindowMask -- .|. propertyChangeMask
 
 sunwm :: UserConf -> IO (Either String ())
 sunwm !uc = do
