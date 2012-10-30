@@ -521,7 +521,7 @@ eventDispatch !(MapRequestEvent {ev_window = win}) = react $ do
     unless (win `elem` allWins || isF || isDia || isS || isDk) $ do
       when (isJust fw) $ (hidden . focusWS) =. (fromJust fw:)
       (tree . focusWS) =. replace (Just win)
-    when (isDk || isDia || isS) $ liftIO $ mapWindow dis win
+    when (isDk || isDia || isS || isF) $ liftIO $ mapWindow dis win
 
 eventDispatch !(DestroyWindowEvent {ev_window = w}) = removeWindow w
 
