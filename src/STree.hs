@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns, TemplateHaskell, TypeOperators #-}
 
+
 -----------------------------------------------------------------------------
 ---- |
 ---- Module      :  STree
