@@ -132,7 +132,7 @@ arrangeN n = asks display >>= \dis -> do
     when (length ws > 1 || L.get trail t /= []) $ liftIO $ mapM_ putWindow ws
     when (length ws == 1 && L.get trail t == []) $ do
         let ((x,y,w,h),win) = head ws
-        liftIO $ moveResizeWindow dis win sx (sy + y) sw sh
+        liftIO $ moveResizeWindow dis win sx (sy + y) w h
 
 -- | Map all windows that should be visible, unmap all windows that shouldn't.
 -- TODO: make this more efficient (only map things that aren't already mapped, same for unmapped)
@@ -439,8 +439,6 @@ detectDocks = do
     qt' <- nub <$> filterM isDock qt
     screens =. mapF (\s -> L.set docks [] s)
     mapM_ addDock qt'
-    ss <- gets screens
-    liftIO $ print ss
 
 addDock :: Window -> SUN ()
 addDock win = do
@@ -448,7 +446,7 @@ addDock win = do
     scrNum <- fromJust <$> screenOfPoint (x + fip (div w 2), y + fip (div h 2)) <$> gets screens
     (sx,sy) <- (L.get xPos &&& L.get yPos) <$> gets (screenN scrNum)
     struts <- fromJust <$> getProp32s "_NET_WM_STRUT_PARTIAL" win
-    (docks . screenN scrNum) =. ((constructDock win (sx - x) (sy - y) w h struts):)
+    (docks . screenN scrNum) =. ((constructDock win (x - sx) (y - sy) w h struts):)
 
 -- | TODO: return Maybe, in case window doesn't exist
 getWinPosDim :: Window -> SUN (Position,Position,Dimension,Dimension)
@@ -504,6 +502,7 @@ eventDispatch !evt@(ConfigureRequestEvent _ _ _ dis _ win x y w h bw a d vm) = r
                      (wa_override_redirect $ wa)
                  sendEvent dis win False 0 ev
     liftIO $ sync dis False
+    detectDocks >> arrange >> refresh
 
 eventDispatch !evt@(KeyEvent {ev_event_type = et}) = when (et == keyPress) $ do
     dis <- asks display
@@ -548,7 +547,9 @@ eventDispatch !evt@(CrossingEvent {ev_window = w, ev_mode = em, ev_event_type = 
 eventDispatch !evt@(PropertyEvent {}) = return () -- updateBars
 
 -- | Ignore all other event types for which specific behavior isn't defined
-eventDispatch !evt = return ()
+eventDispatch !evt
+    | ev_event_type evt == configureNotify = detectDocks >> arrange >> refresh
+    | otherwise = return ()
 
 clientMask :: EventMask
 clientMask = propertyChangeMask .|. enterWindowMask
