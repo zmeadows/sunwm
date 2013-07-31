@@ -24,11 +24,13 @@ import Graphics.X11
 import Data.Bits hiding (shift)
 import System.IO
 import qualified Data.Map as M
+import Control.Concurrent (threadDelay)
+import System.Process
 
 main :: IO ()
-main = sunwm defaultConfig >>= print
+main = runCommand "xmobar -x 0" >> runCommand "xmobar -x 1" >> sunwm defaultConfig >>= print
 
--- myBarConf :: Maybe BarConf
+       -- myBarConf :: Maybe BarConf
 -- myBarConf = Just BarConf {
 --     _focusColor       = ("#222222", "#dddd77"),
 --     _hiddenColor      = ("#f8f8f8", "#222222"),
@@ -86,7 +88,6 @@ defaultKeys = M.fromList
     , ((mod1Mask, xK_l), shiftTo R)
     , ((mod1Mask, xK_j), shiftTo D)
     , ((mod1Mask, xK_k), shiftTo U)
-    , ((0, xK_t), detectDocks)
     ]
 
 defaultTopKeys :: M.Map (KeyMask, KeySym) (SUN ())

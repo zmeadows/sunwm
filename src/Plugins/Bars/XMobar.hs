@@ -52,7 +52,7 @@ updateBarN n = asks display >>= \dis -> do
 putXMobarStr :: Int -> String -> SUN ()
 putXMobarStr n str = do
   bh <- gets (barHandle . screenN n)
-  liftIO $ hPutStrLn (fromJust bh) str
+  liftIO $ hPutStrLn (fromJust bh) str -- USE RUNINTERACTIVEPROCESS from system.process
 
 formatStrXMobar :: (String,String) -> String -> String
 formatStrXMobar (fg,bg) !str =

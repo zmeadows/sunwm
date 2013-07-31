@@ -4,6 +4,7 @@
 
 $   := future ideas not yet made concrete in any way
 
+***: fix fromJust's and add error handling to dock detection
 
 ***: don't remap windows after focus notify (just change focus and update borders)
 

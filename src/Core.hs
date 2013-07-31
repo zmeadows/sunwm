@@ -442,21 +442,22 @@ detectDocks = do
     ss <- gets screens
     liftIO $ print ss
 
+addDock :: Window -> SUN ()
 addDock win = do
     (x,y,w,h) <- getWinPosDim win
-    scrNum <- fromJust <$> screenOfPoint (x,y) <$> gets screens
+    scrNum <- fromJust <$> screenOfPoint (x + fip (div w 2), y + fip (div h 2)) <$> gets screens
+    (sx,sy) <- (L.get xPos &&& L.get yPos) <$> gets (screenN scrNum)
     struts <- fromJust <$> getProp32s "_NET_WM_STRUT_PARTIAL" win
-    (docks . screenN scrNum) =. ((constructDock win x y w h struts):)
+    (docks . screenN scrNum) =. ((constructDock win (sx - x) (sy - y) w h struts):)
 
-
+-- | TODO: return Maybe, in case window doesn't exist
 getWinPosDim :: Window -> SUN (Position,Position,Dimension,Dimension)
 getWinPosDim win = do
     dis <- asks display
     att <- liftIO $ getWindowAttributes dis win
     return (fip $ wa_x att, fip $ wa_y att, fid $ wa_width att, fid $ wa_height att)
 
--- | Core function of the whole window manager.  Receives the events
--- and sends them to eventDispatch.
+-- | Receives the events and sends them to eventDispatch.
 eventLoop :: SUN ()
 eventLoop = forever $ asks display >>= \dis -> do
   evt <- liftIO $ do
@@ -468,7 +469,10 @@ eventLoop = forever $ asks display >>= \dis -> do
 
 eventDispatch :: Event -> SUN ()
 
-eventDispatch !(UnmapEvent {ev_window = w, ev_send_event = synthetic}) = when synthetic (removeWindow w)
+eventDispatch !(UnmapEvent {ev_window = w, ev_send_event = synthetic}) =
+    if synthetic
+        then (removeWindow w)
+        else detectDocks
 
 -- | TODO: deal with splash/dialog etc (wait until float support added)
 eventDispatch !(MapRequestEvent {ev_window = win}) = react $ do
@@ -483,8 +487,9 @@ eventDispatch !(MapRequestEvent {ev_window = win}) = react $ do
       (tree . focusWS) =. replace (Just win)
     when (isDk || isDia || isS || isF) $ liftIO $ mapWindow dis win
     when isDia $ liftIO $ setInputFocus dis win revertToParent 0
+    when isDk $ detectDocks >> arrange >> refresh
 
-eventDispatch !(DestroyWindowEvent {ev_window = w}) = removeWindow w
+eventDispatch !(DestroyWindowEvent {ev_window = w}) = removeWindow w >> detectDocks -- is this necessary (detectDocks)
 
 eventDispatch !evt@(ConfigureRequestEvent _ _ _ dis _ win x y w h bw a d vm) = react $ do
     ws  <- flattenToWins <$> gets (tree . focusWS)
@@ -542,15 +547,15 @@ eventDispatch !evt@(CrossingEvent {ev_window = w, ev_mode = em, ev_event_type = 
 
 eventDispatch !evt@(PropertyEvent {}) = return () -- updateBars
 
--- | Ignore all other event types for which we haven't defined specific behavior
-eventDispatch !_ = return ()
+-- | Ignore all other event types for which specific behavior isn't defined
+eventDispatch !evt = return ()
 
 clientMask :: EventMask
-clientMask = propertyChangeMask .|. enterWindowMask -- .|. propertyChangeMask
+clientMask = propertyChangeMask .|. enterWindowMask
 
 sunwm :: UserConf -> IO (Either String ())
 sunwm !uc = do
     conf <- setup uc
     scrRecs <- getScreenInfo $ L.get display conf
     let st = initState (length $ L.get wsNames uc) scrRecs
-    runSUN (grabPrefixTops >> eventLoop) st conf
+    runSUN (grabPrefixTops >> detectDocks >> eventLoop) st conf
