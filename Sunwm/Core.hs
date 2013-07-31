@@ -13,10 +13,10 @@ import Control.Arrow
 import Control.Monad.State.Strict hiding (gets)
 import Control.Monad.Reader hiding (asks)
 import Control.Monad.Error
-import Control.Concurrent (threadDelay)
+--import Control.Concurrent (threadDelay)
 
 import Data.Maybe
-import Data.List ((\\), find, delete, nub, intercalate)
+import Data.List ((\\), find, nub)
 import Data.Label ((:->))
 import Data.Label.PureM ((=:),(=.),gets,asks)
 import qualified Data.Label as L
@@ -146,6 +146,12 @@ refresh = do
     let vs = concatMap getScrVisWins scrs
         hs = (concatMap getScrAllWins scrs) \\ vs
     ioMap_ (unmapWindow dis) hs >> ioMap_ (mapWindow dis) vs
+    runStackHook
+
+runStackHook :: SUN ()
+runStackHook = do
+    sh <- asks (stackHook . userConf)
+    sh
 
 ioMap_ :: MonadIO m => (a -> IO b) -> [a] -> m ()
 ioMap_ f !l = liftIO $ mapM_ f l
@@ -546,7 +552,7 @@ eventDispatch !evt@(CrossingEvent {ev_window = w, ev_mode = em, ev_event_type = 
       aws <- getAllWins
       when (w `elem` aws) $ react $ screens =. focusToWin w
 
-eventDispatch !evt@(PropertyEvent {}) = return () -- updateBars
+eventDispatch !evt@(PropertyEvent {}) = runStackHook
 
 -- | Ignore all other event types for which specific behavior isn't defined
 eventDispatch !evt
@@ -561,4 +567,4 @@ sunwm !uc = do
     conf <- setup uc
     scrRecs <- getScreenInfo $ L.get display conf
     let st = initState (length $ L.get wsNames uc) scrRecs
-    runSUN (grabPrefixTops >> detectDocks >> eventLoop) st conf
+    runSUN (grabPrefixTops >> (L.get initHook uc) >> detectDocks >> eventLoop) st conf

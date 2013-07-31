@@ -85,6 +85,7 @@ data SUNScreen = SUNScreen
     , _height       :: !Dimension
     , _lastWS       :: !Int
     , _docks        :: [Dock]
+    , _barHandle    :: Maybe Handle
     } deriving (Show,Eq)
 
 data SUNState = SUNState
@@ -110,7 +111,7 @@ emptyWS :: Workspace
 emptyWS = Workspace emptyZipper [] False
 
 emptyScr :: Int -> Rectangle -> SUNScreen
-emptyScr !nws !(Rectangle x y w h) = SUNScreen wss x y w h 1 []
+emptyScr !nws !(Rectangle x y w h) = SUNScreen wss x y w h 1 [] Nothing
     where wss = fromList 1 $ zip [1..nws] $ replicate nws emptyWS
 
 initFocusHistory = FocusHistory Nothing Nothing Nothing Nothing

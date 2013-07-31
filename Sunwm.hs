@@ -27,16 +27,18 @@ import qualified Data.Map as M
 import Control.Concurrent (threadDelay)
 import System.Process
 
-main :: IO ()
-main = runCommand "xmobar -x 0" >> runCommand "xmobar -x 1" >> sunwm defaultConfig >>= print
+import Sunwm.Extra.Bars.XMobar
+import Sunwm.Extra.Bars.Util
 
-       -- myBarConf :: Maybe BarConf
--- myBarConf = Just BarConf {
---     _focusColor       = ("#222222", "#dddd77"),
---     _hiddenColor      = ("#f8f8f8", "#222222"),
---     _hiddenEmptyColor = ("#8f8f8f", "#222222"),
---     _titleColor       = ("#dddd77", "#222222")
---     }
+main :: IO ()
+main = sunwm (xmobar myBarConf defaultConfig) >>= print
+
+myBarConf = BarConf {
+    _focusColor       = ("#222222", "#dddd77"),
+    _hiddenColor      = ("#f8f8f8", "#222222"),
+    _hiddenEmptyColor = ("#8f8f8f", "#222222"),
+    _titleColor       = ("#dddd77", "#222222")
+    }
 
 workspaceNames:: [String]
 workspaceNames = map show ([1..9] :: [Int])
@@ -52,8 +54,8 @@ defaultConfig = UserConf {
     _wsNames       = workspaceNames,
     _prefixKey     = (0, xK_F13),
     _terminal      = "urxvtc +sb",
-    _initHook      = return (),
-    _stackHook     = return ()
+    _initHook      = return () :: SUN (),
+    _stackHook     = return () :: SUN ()
     }
 
 defaultKeys :: M.Map (KeyMask, KeySym) (SUN ())
