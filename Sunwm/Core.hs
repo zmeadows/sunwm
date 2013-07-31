@@ -1,9 +1,9 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving, BangPatterns, TemplateHaskell, TypeOperators #-}
-module Core where
+module Sunwm.Core where
 
-import STree
-import Util
-import FocusMap
+import Sunwm.STree
+import Sunwm.Util
+import Sunwm.FocusMap
 
 import Prelude hiding ((.), id)
 import Control.Category ((.))
@@ -42,6 +42,8 @@ data UserConf = UserConf
     , _wsNames       :: ![String]
     , _prefixKey     :: !(KeyMask, KeySym)
     , _terminal      :: !String
+    , _initHook      :: SUN ()
+    , _stackHook     :: SUN ()
     }
 
 -- data MouseFocusStyle = None | Click | Follow

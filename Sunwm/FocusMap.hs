@@ -1,4 +1,4 @@
-module FocusMap where
+module Sunwm.FocusMap where
 
 -- This is essentially just a wrapper around Data.Map
 -- that maintains a 'focus'.  All this does is reduce

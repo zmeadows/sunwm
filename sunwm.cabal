@@ -14,4 +14,4 @@ executable sunwm
   main-is: Sunwm.hs
   build-depends: base, X11, fclabels, mtl, containers, extensible-exceptions, unix, transformers, process
   ghc-options: -funbox-strict-fields -O2 -fspec-constr-count=56
-  hs-source-dirs: src
+  hs-source-dirs: Sunwm .

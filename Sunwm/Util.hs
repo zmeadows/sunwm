@@ -27,7 +27,7 @@
 -- --------------------------------------------------------------------------
 -}
 {-# LANGUAGE BangPatterns #-}
-module Util where
+module Sunwm.Util where
 
 import Control.Monad.IO.Class
 import System.Posix.Signals

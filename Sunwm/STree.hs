@@ -15,10 +15,10 @@
 ----
 -----------------------------------------------------------------------------
 
-module STree where
+module Sunwm.STree where
 -- | TODO: module exports
 
-import FocusMap
+import Sunwm.FocusMap
 
 import Prelude hiding ((.))
 import Data.Label hiding (fw)

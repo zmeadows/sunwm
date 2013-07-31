@@ -16,9 +16,9 @@
   You should have received a copy of the GNU General Public License
   along with sunWM.  If not, see <http://www.gnu.org/licenses/>.
 -}
-import Core
-import STree
-import Util
+import Sunwm.Core
+import Sunwm.STree
+import Sunwm.Util
 
 import Graphics.X11
 import Data.Bits hiding (shift)
@@ -51,7 +51,9 @@ defaultConfig = UserConf {
     _topKeyBinds   = defaultTopKeys,
     _wsNames       = workspaceNames,
     _prefixKey     = (0, xK_F13),
-    _terminal      = "urxvtc +sb"
+    _terminal      = "urxvtc +sb",
+    _initHook      = return (),
+    _stackHook     = return ()
     }
 
 defaultKeys :: M.Map (KeyMask, KeySym) (SUN ())
