@@ -65,7 +65,7 @@ defaultKeys = M.fromList
     , ((0, xK_n), splitH 0.5 >> focusTo D)
     , ((shiftMask, xK_n), splitH 0.65 >> focusTo D)
     , ((mod1Mask,  xK_n), splitH 0.35 >> focusTo D >> swapToDir U)
-    , ((0, xK_p),  dmenu "-*-terminus-medium-*-*-*-12-*-*-*-*-*-iso8859-1"
+    , ((0, xK_p),  dmenu "-*-tamsyn-medium-*-*-*-17-*-*-*-*-*-*-*"
                          "#222222" "#f8f8f8" "#dddd77" "#222222")
     , ((shiftMask, xK_h), swapToDir L)
     , ((shiftMask, xK_l), swapToDir R)

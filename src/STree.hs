@@ -35,20 +35,23 @@ import Graphics.X11.Types (Window)
 import Graphics.X11.Xlib.Types (Dimension, Position, Rectangle(..), Pixel)
 import Data.Int (Int32)
 
+data Direction = L | R | U | D
+    deriving (Show,Eq)
+
 type SplitRatio = Double
 
 data SplitType = H {_ratio :: SplitRatio} | V {_ratio :: SplitRatio}
-    deriving (Show,Eq)
+    deriving (Show,Eq,Read)
 
 data SUNTree = Frame (Maybe Window) | Split SplitType !SUNTree !(SUNTree)
-    deriving (Show,Eq)
+    deriving (Show,Eq,Read)
 
 data SUNPath = LU { _splitType :: SplitType, _splitTree :: !(SUNTree) }
              | RD { _splitType :: SplitType, _splitTree :: !(SUNTree) }
-    deriving (Show,Eq)
+    deriving (Show,Eq,Read)
 
 data SUNZipper = SZ { _focus :: !(SUNTree), _trail :: ![SUNPath] }
-    deriving (Show,Eq)
+    deriving (Show,Eq,Read)
 
 data Workspace = Workspace
     { _tree         :: !(SUNZipper)
@@ -63,6 +66,14 @@ data FocusHistory = FocusHistory
     , _lastDown  :: Maybe Window
     } deriving (Show, Eq)
 
+data Dock = Dock
+    { _barX :: Position
+    , _barY :: Position
+    , _barW :: Dimension
+    , _barH :: Dimension
+    , _barPosition :: Direction
+    } deriving (Show, Eq)
+
 data SUNScreen = SUNScreen
     { _workspaces   :: !(FocusMap Int Workspace)
     , _xPos         :: !Position
@@ -70,19 +81,15 @@ data SUNScreen = SUNScreen
     , _width        :: !Dimension
     , _height       :: !Dimension
     , _lastWS       :: !Int
-    , _barHandle    :: !(Maybe Handle)
+    , _docks         :: [Dock]
     } deriving (Show,Eq)
 
 data SUNState = SUNState
     { _screens      :: !(FocusMap Int SUNScreen)
     , _inPrefix     :: !Bool
-    , _barHeight    :: !Dimension
     , _lastScr      :: !Int
     , _focusHistory :: !FocusHistory
     } deriving (Show,Eq)
-
-data Direction = L | R | U | D
-    deriving (Show,Eq)
 
 $(mkLabels [''SplitType, ''SUNPath, ''SUNZipper, ''Workspace, ''SUNScreen, ''SUNState])
 
@@ -99,13 +106,13 @@ emptyWS :: Workspace
 emptyWS = Workspace emptyZipper [] False
 
 emptyScr :: Int -> Rectangle -> SUNScreen
-emptyScr !nws !(Rectangle x y w h) = SUNScreen wss x y w h 1 Nothing
+emptyScr !nws !(Rectangle x y w h) = SUNScreen wss x y w h 1 []
     where wss = fromList 1 $ zip [1..nws] $ replicate nws emptyWS
 
 initFocusHistory = FocusHistory Nothing Nothing Nothing Nothing
 
 initState :: Int -> [Rectangle] -> SUNState
-initState !nw !recs = SUNState scrs False 0 (if length recs > 1 then 2 else 1) initFocusHistory
+initState !nw !recs = SUNState scrs False (if length recs > 1 then 2 else 1) initFocusHistory
   where scrs = fromList 1 $ zip [1..length recs] $ map (emptyScr nw) recs
 
 walkTrail :: SUNPath -> SUNZipper -> SUNZipper
@@ -565,6 +572,4 @@ swapWSscr nscn m@(fscn,scs) =
     let fws = get focusWSscr $ focused m
         ows = get focusWSscr $ m <!> nscn
     in adjustK fscn (set focusWSscr ows) $ adjustK nscn (set focusWSscr fws) m
-
-
 

@@ -13,5 +13,5 @@ build-type: Simple
 executable sunwm
   main-is: Sunwm.hs
   build-depends: base, X11, fclabels, mtl, containers, extensible-exceptions, unix, transformers
-  ghc-options: -funbox-strict-fields -O2 -fspec-constr-count=56
+  ghc-options: -funbox-strict-fields -O2 -fspec-constr-count=56 -Wall
   hs-source-dirs: src
