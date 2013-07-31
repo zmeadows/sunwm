@@ -246,25 +246,30 @@ adjustForDocks sw sh ds =
 leftShave :: [Dock] -> Dimension
 leftShave ds = let lbs = filter (\d -> get barPosition d == L) ds
                    leftGap d = fid (get barX d) + fid (get barW d)
-               in maximum $ map leftGap lbs
+               in if null lbs then 0 else maximum $ map leftGap lbs
 
 rightShave :: Dimension -> [Dock] -> Dimension
 rightShave sw ds = let rbs = filter (\d -> get barPosition d == R) ds
                        rightGap d = sw - (fid $ get barX d)
-                   in maximum $ map rightGap rbs
+                   in if null rbs then 0 else maximum $ map rightGap rbs
 
 topShave :: [Dock] -> Dimension
 topShave ds = let tbs = filter (\d -> get barPosition d == U) ds
                   topGap d = fid (get barY d) + fid (get barH d)
-              in maximum $ map topGap tbs
+              in if null tbs then 0 else maximum $ map topGap tbs
 
 bottomShave :: Dimension -> [Dock] -> Dimension
 bottomShave sh ds = let bbs = filter (\d -> get barPosition d == D) ds
                         bottomGap d = sh - (fid $ get barY d)
-                    in maximum $ map bottomGap bbs
+                    in if null bbs then 0 else maximum $ map bottomGap bbs
 
-constructDock :: Window -> [CLong] -> Int
-constructDock win (l:r:t:b:ls:le:rs:re:ts:te:bs:be:[]) = 0
+constructDock :: Window -> Position -> Position -> Dimension -> Dimension -> [CLong] -> Dock
+constructDock win x y w h (l:r:t:b:_) = Dock x y w h dir win
+    where dir | l > 0 = L
+              | r > 0 = R
+              | t > 0 = U
+              | b > 0 = D
+              | otherwise = error "SOMETHING HAS GONE HORRIBLY WRONG"
 
 -- | 'flatten' is the core function of the window manager, calculating the size
 -- of the windows themselves by recursively subdividing based on
@@ -290,7 +295,6 @@ flattenGlobal scr =
         loc = flatten t [] w' h'
     in map (\((x,y,w,h),sz) -> ((fip x + fip x', fip y + fip y', fid w, fid h),sz)) loc
 
--- | TODO: account for docks
 flattenToDimWins :: Dimension -> Dimension -> [Dock] -> SUNZipper
                     -> [((Position, Position, Dimension, Dimension), Window)]
 flattenToDimWins sw sh ds !sz = map pullWin $ filter isWin $ flatten sz ds sw sh
@@ -355,8 +359,8 @@ focusToWin win q@(fsn,scrs)
   where nscrn = screenOfWin win q
 
 -- | version after adding multi monitor focus switching
-changeFocus2 :: Direction -> FocusMap Int SUNScreen -> FocusMap Int SUNScreen
-changeFocus2 dir q@(fsn,scrs)
+changeFocus :: Direction -> FocusMap Int SUNScreen -> FocusMap Int SUNScreen
+changeFocus dir q@(fsn,scrs)
     | null cands = q
     | fromFrame (snd focusCand) == Nothing =
         let a = mapElems flattenGlobal q
@@ -554,26 +558,26 @@ moveToScr nscn m@(fscn,scs)
 swap :: Direction -> FocusMap Int SUNScreen -> FocusMap Int SUNScreen
 swap dir m@(fscn,scs) =
     adjustK nscn (modify (tree . focusWSscr) (replace fw))
-    $ changeFocus2 dir
+    $ changeFocus dir
     $ adjustK fscn (modify (tree . focusWSscr) (replace nw))
     $ (if (isJust nw) then (annihilateWin $ fromJust nw) else id)
     $ (if (isJust fw) then (annihilateWin $ fromJust fw) else id) m
-  where m'@(nscn,_) = changeFocus2 dir m
+  where m'@(nscn,_) = changeFocus dir m
         nw = fromFrame $ get (tree . focusWSscr) $ focused m'
         fw = fromFrame $ get (tree . focusWSscr) $ focused m
 
 shift :: Direction -> FocusMap Int SUNScreen -> FocusMap Int SUNScreen
 shift dir m@(fscn, scs)
-    | fw == Nothing || nw == Nothing && fw == Nothing = changeFocus2 dir m
+    | fw == Nothing || nw == Nothing && fw == Nothing = changeFocus dir m
     | nw == fw = m
     | otherwise =
         adjustK nscn (modify (tree . focusWSscr) (replace fw))
-        $ changeFocus2 dir
+        $ changeFocus dir
         $ adjustK nscn (modify (hidden . focusWSscr) (maybeToList nw ++))
         $ adjustK fscn (modify focusWSscr (cycleHidden R))
         $ (if (isJust nw) then (annihilateWin $ fromJust nw) else id)
         $ (if (isJust fw) then (annihilateWin $ fromJust fw) else id) m
-  where m'@(nscn,_) = changeFocus2 dir m
+  where m'@(nscn,_) = changeFocus dir m
         nw = fromFrame $ get (tree . focusWSscr) $ focused m'
         fw = fromFrame $ get (tree . focusWSscr) $ focused m
 

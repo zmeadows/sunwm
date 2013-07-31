@@ -16,7 +16,7 @@ import Control.Monad.Error
 import Control.Concurrent (threadDelay)
 
 import Data.Maybe
-import Data.List ((\\), find, delete, intercalate)
+import Data.List ((\\), find, delete, nub, intercalate)
 import Data.Label ((:->))
 import Data.Label.PureM ((=:),(=.),gets,asks)
 import qualified Data.Label as L
@@ -334,8 +334,10 @@ changeScr scrn = react $ do
     lastScr =: fscrn
     modify $ changeScreen scrn
 
+toggleWS :: SUN ()
 toggleWS = gets (lastWS . focusScr) >>= changeWS
 
+toggleScr :: SUN ()
 toggleScr = gets lastScr >>= changeScr
 
 isDialog :: Window -> SUN Bool
@@ -373,7 +375,7 @@ getProp32s str w = do { a <- getAtom str; getProp32 a w }
 focusTo :: Direction -> SUN ()
 focusTo dir = react $ do
     pscr <- fst <$> gets screens
-    safeModify screens (changeFocus2 dir)
+    safeModify screens (changeFocus dir)
     nscr <- fst <$> gets screens
     when (pscr /= nscr) $ lastScr =: pscr
 
@@ -434,9 +436,24 @@ detectDocks :: SUN ()
 detectDocks = do
     dis <- asks display ; rt <- asks root
     (_,_,qt) <- liftIO $ queryTree dis rt
-    qt' <- filterM isDock qt
-    strutinfo <- catMaybes <$> mapM (getProp32s "_NET_WM_STRUT_PARTIAL") qt'
-    liftIO $ print strutinfo
+    qt' <- nub <$> filterM isDock qt
+    screens =. mapF (\s -> L.set docks [] s)
+    mapM_ addDock qt'
+    ss <- gets screens
+    liftIO $ print ss
+
+addDock win = do
+    (x,y,w,h) <- getWinPosDim win
+    scrNum <- fromJust <$> screenOfPoint (x,y) <$> gets screens
+    struts <- fromJust <$> getProp32s "_NET_WM_STRUT_PARTIAL" win
+    (docks . screenN scrNum) =. ((constructDock win x y w h struts):)
+
+
+getWinPosDim :: Window -> SUN (Position,Position,Dimension,Dimension)
+getWinPosDim win = do
+    dis <- asks display
+    att <- liftIO $ getWindowAttributes dis win
+    return (fip $ wa_x att, fip $ wa_y att, fid $ wa_width att, fid $ wa_height att)
 
 -- | Core function of the whole window manager.  Receives the events
 -- and sends them to eventDispatch.
