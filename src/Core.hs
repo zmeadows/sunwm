@@ -129,10 +129,10 @@ arrangeN n = asks display >>= \dis -> do
 
     let ws = flattenToDimWins sw sh ds t
         putWindow ((x,y,w,h),win) = moveResizeWindow dis win (x + sx) (y + sy) (w - bw) (h - bw)
-    liftIO $ mapM_ putWindow ws
---    when (length ws > 1 || L.get trail t /= []) $ liftIO $ mapM_ putWindow ws
---    when (length ws == 1 && L.get trail t == []) $
---        liftIO $ moveResizeWindow dis (snd $ head ws) sx (bh + sy) sw (sh - (fi bh))
+    when (length ws > 1 || L.get trail t /= []) $ liftIO $ mapM_ putWindow ws
+    when (length ws == 1 && L.get trail t == []) $ do
+        let ((x,y,w,h),win) = head ws
+        liftIO $ moveResizeWindow dis win sx (sy + y) sw sh
 
 -- | Map all windows that should be visible, unmap all windows that shouldn't.
 -- TODO: make this more efficient (only map things that aren't already mapped, same for unmapped)
