@@ -28,13 +28,13 @@ import qualified Data.Map as M
 main :: IO ()
 main = sunwm defaultConfig >>= print
 
-myBarConf :: Maybe BarConf
-myBarConf = Just BarConf {
-    _focusColor       = ("#222222", "#dddd77"),
-    _hiddenColor      = ("#f8f8f8", "#222222"),
-    _hiddenEmptyColor = ("#8f8f8f", "#222222"),
-    _titleColor       = ("#dddd77", "#222222")
-    }
+-- myBarConf :: Maybe BarConf
+-- myBarConf = Just BarConf {
+--     _focusColor       = ("#222222", "#dddd77"),
+--     _hiddenColor      = ("#f8f8f8", "#222222"),
+--     _hiddenEmptyColor = ("#8f8f8f", "#222222"),
+--     _titleColor       = ("#dddd77", "#222222")
+--     }
 
 workspaceNames:: [String]
 workspaceNames = map show ([1..9] :: [Int])
@@ -49,7 +49,6 @@ defaultConfig = UserConf {
     _topKeyBinds   = defaultTopKeys,
     _wsNames       = workspaceNames,
     _prefixKey     = (0, xK_F13),
-    _barConf       = myBarConf,
     _terminal      = "urxvtc +sb"
     }
 
@@ -87,6 +86,7 @@ defaultKeys = M.fromList
     , ((mod1Mask, xK_l), shiftTo R)
     , ((mod1Mask, xK_j), shiftTo D)
     , ((mod1Mask, xK_k), shiftTo U)
+    , ((0, xK_t), detectDocks)
     ]
 
 defaultTopKeys :: M.Map (KeyMask, KeySym) (SUN ())

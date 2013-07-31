@@ -41,18 +41,11 @@ data UserConf = UserConf
     , _topKeyBinds   :: !(Map (KeyMask, KeySym) (SUN ()))
     , _wsNames       :: ![String]
     , _prefixKey     :: !(KeyMask, KeySym)
-    , _barConf       :: !(Maybe BarConf)
     , _terminal      :: !String
     }
 
 -- data MouseFocusStyle = None | Click | Follow
 
-data BarConf = BarConf
-    { _focusColor       :: !(String, String)
-    , _hiddenColor      :: !(String, String)
-    , _hiddenEmptyColor :: !(String, String)
-    , _titleColor       :: !(String, String)
-    } deriving (Show, Eq)
 
 data SUNConf = SUNConf
     { _display            :: !Display
@@ -66,13 +59,14 @@ data SUNConf = SUNConf
 newtype SUN a = SUN (ErrorT String (ReaderT SUNConf (StateT SUNState IO)) a)
     deriving (Monad, MonadPlus, MonadIO, MonadState SUNState, MonadReader SUNConf, Functor)
 
-$(L.mkLabels [''SUNConf, ''BarConf, ''UserConf])
+$(L.mkLabels [''SUNConf, ''UserConf])
 
 -- | ---------------------- | --
 -- | SETUP/EXTRANEOUS STUFF | --
 -- | ---------------------- | --
 
 -- | Move mouse to far bottom right corner of screen.
+-- TODO: fix for multi monitor setups
 banish :: SUN ()
 banish = do
     dis     <- asks display
@@ -130,13 +124,15 @@ arrangeN n = asks display >>= \dis -> do
     t <- L.get tree <$> focused <$> gets (workspaces . screenN n)
     (sx,sy) <- (L.get xPos &&& L.get yPos) <$> gets (screenN n)
     (sw,sh) <- (L.get width &&& L.get height) <$> gets (screenN n)
+    ds <- (L.get docks) <$> gets (screenN n)
     bw <- (2 *) <$> asks (borderWidth . userConf)
-    bh <- fip <$> gets barHeight
-    let ws = flattenToDimWins sw (sh - (fi bh)) t
-        putWindow ((x,y,w,h),win) = moveResizeWindow dis win (x + sx) (y + bh + sy) (w - bw) (h - bw)
-    when (length ws > 1 || L.get trail t /= []) $ liftIO $ mapM_ putWindow ws
-    when (length ws == 1 && L.get trail t == []) $
-        liftIO $ moveResizeWindow dis (snd $ head ws) sx (bh + sy) sw (sh - (fi bh))
+
+    let ws = flattenToDimWins sw sh ds t
+        putWindow ((x,y,w,h),win) = moveResizeWindow dis win (x + sx) (y + sy) (w - bw) (h - bw)
+    liftIO $ mapM_ putWindow ws
+--    when (length ws > 1 || L.get trail t /= []) $ liftIO $ mapM_ putWindow ws
+--    when (length ws == 1 && L.get trail t == []) $
+--        liftIO $ moveResizeWindow dis (snd $ head ws) sx (bh + sy) sw (sh - (fi bh))
 
 -- | Map all windows that should be visible, unmap all windows that shouldn't.
 -- TODO: make this more efficient (only map things that aren't already mapped, same for unmapped)
@@ -213,22 +209,22 @@ drawFrameBorder = do
     (sx,sy) <- (L.get xPos &&& L.get yPos) <$> gets focusScr
     fc <- asks focusedBorderColor
     bw <- asks (borderWidth . userConf)
-    bh <- gets barHeight
+    ds <- gets (docks . focusScr)
 
     t <- gets (tree . focusWS)
-    let mt = find ((==) t . snd) $ flatten t sw (sh - (fi bh))
+    let mt = find ((==) t . snd) $ flatten t ds sw sh
 
     when (isJust mt && (L.get trail t) /= []) $ liftIO $ do
         let ((x,y,w,h),_) = fromJust mt
         gc <- createGC dis rt
         setLineAttributes dis gc (fi bw) lineDoubleDash capButt joinMiter
         setForeground dis gc fc
-        drawRectangle dis rt gc (fi x + div (fip bw) 2 + sx) (fi y + div (fip bw) 2 + fip bh + sy) (w - fid bw) (h - fid bw)
+        drawRectangle dis rt gc (fi x + div (fip bw) 2 + sx) (fi y + div (fip bw) 2 + sy) (w - fid bw) (h - fid bw)
         sync dis False
         freeGC dis gc
 
 react :: SUN () -> SUN ()
-react sun = sun >> arrange >> refresh >> updateFocus >> updateBars
+react sun = sun >> arrange >> refresh >> updateFocus
 
 -- | Swap the content (empty or not) of two adjacent frames in specified direction.
 swapToDir :: Direction -> SUN ()
@@ -246,7 +242,8 @@ safeModify lns f = do
     (sw,sh) <- getFocusScrDims
     let nt = L.get (tree . focusWS) ss'
     inFS <- gets (inFullScreen . focusWS)
-    when (not inFS && all notTooSmall (map fst $ flatten nt sw sh)) $ lns =. f
+    ds <- gets (docks . focusScr)
+    when (not inFS && all notTooSmall (map fst $ flatten nt ds sw sh)) $ lns =. f
   where notTooSmall (_,_,w,h) = w > 50 && h > 50
 
 runSUN :: SUN a -> SUNState -> SUNConf -> IO (Either String a)
@@ -433,6 +430,14 @@ splitH r = react $ safeModify focusWS (doSplit $ hSplit r)
 splitV :: SplitRatio -> SUN ()
 splitV r = react $ safeModify focusWS (doSplit $ vSplit r)
 
+detectDocks :: SUN ()
+detectDocks = do
+    dis <- asks display ; rt <- asks root
+    (_,_,qt) <- liftIO $ queryTree dis rt
+    qt' <- filterM isDock qt
+    strutinfo <- catMaybes <$> mapM (getProp32s "_NET_WM_STRUT_PARTIAL") qt'
+    liftIO $ print strutinfo
+
 -- | Core function of the whole window manager.  Receives the events
 -- and sends them to eventDispatch.
 eventLoop :: SUN ()
@@ -518,7 +523,7 @@ eventDispatch !evt@(CrossingEvent {ev_window = w, ev_mode = em, ev_event_type = 
       aws <- getAllWins
       when (w `elem` aws) $ react $ screens =. focusToWin w
 
-eventDispatch !evt@(PropertyEvent {}) = updateBars
+eventDispatch !evt@(PropertyEvent {}) = return () -- updateBars
 
 -- | Ignore all other event types for which we haven't defined specific behavior
 eventDispatch !_ = return ()
@@ -531,4 +536,4 @@ sunwm !uc = do
     conf <- setup uc
     scrRecs <- getScreenInfo $ L.get display conf
     let st = initState (length $ L.get wsNames uc) scrRecs
-    runSUN (initBars >> grabPrefixTops >> updateBars >> eventLoop) st conf
+    runSUN (grabPrefixTops >> eventLoop) st conf

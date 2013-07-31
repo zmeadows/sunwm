@@ -27,6 +27,8 @@ import Data.Maybe
 import Data.Ord (comparing)
 import System.IO (Handle)
 
+import Foreign.C.Types (CLong)
+
 import Control.Applicative((<$>))
 import Control.Category ((.))
 --import Control.Arrow (first, second, (&&&))
@@ -72,6 +74,7 @@ data Dock = Dock
     , _barW :: Dimension
     , _barH :: Dimension
     , _barPosition :: Direction
+    , _barWin :: Window
     } deriving (Show, Eq)
 
 data SUNScreen = SUNScreen
@@ -81,7 +84,7 @@ data SUNScreen = SUNScreen
     , _width        :: !Dimension
     , _height       :: !Dimension
     , _lastWS       :: !Int
-    , _docks         :: [Dock]
+    , _docks        :: [Dock]
     } deriving (Show,Eq)
 
 data SUNState = SUNState
@@ -91,7 +94,8 @@ data SUNState = SUNState
     , _focusHistory :: !FocusHistory
     } deriving (Show,Eq)
 
-$(mkLabels [''SplitType, ''SUNPath, ''SUNZipper, ''Workspace, ''SUNScreen, ''SUNState])
+$(mkLabels [''SplitType, ''SUNPath, ''SUNZipper, ''Workspace,
+           ''FocusHistory, ''Dock, ''SUNScreen, ''SUNState])
 
 -- | A frame with no window in it.
 emptyFrame :: SUNTree
@@ -228,11 +232,45 @@ fip x = fromIntegral x :: Position
 fid :: Integral a => a -> Dimension
 fid x = fromIntegral x :: Dimension
 
+--adjustForDocks :: Dimension -> Dimension -> [Dock]
+--                -> (Position, Position, Dimension, Dimension)
+adjustForDocks sw sh ds =
+    if (null ds)
+        then (0,0,sw,sh)
+        else let ls = leftShave ds
+                 rs = rightShave sw ds
+                 ts = topShave ds
+                 bs = bottomShave sh ds
+             in (fi ls, fi ts, fi $ sw - ls - rs, fi $ sh - ts - bs)
+
+leftShave :: [Dock] -> Dimension
+leftShave ds = let lbs = filter (\d -> get barPosition d == L) ds
+                   leftGap d = fid (get barX d) + fid (get barW d)
+               in maximum $ map leftGap lbs
+
+rightShave :: Dimension -> [Dock] -> Dimension
+rightShave sw ds = let rbs = filter (\d -> get barPosition d == R) ds
+                       rightGap d = sw - (fid $ get barX d)
+                   in maximum $ map rightGap rbs
+
+topShave :: [Dock] -> Dimension
+topShave ds = let tbs = filter (\d -> get barPosition d == U) ds
+                  topGap d = fid (get barY d) + fid (get barH d)
+              in maximum $ map topGap tbs
+
+bottomShave :: Dimension -> [Dock] -> Dimension
+bottomShave sh ds = let bbs = filter (\d -> get barPosition d == D) ds
+                        bottomGap d = sh - (fid $ get barY d)
+                    in maximum $ map bottomGap bbs
+
+constructDock :: Window -> [CLong] -> Int
+constructDock win (l:r:t:b:ls:le:rs:re:ts:te:bs:be:[]) = 0
+
 -- | 'flatten' is the core function of the window manager, calculating the size
 -- of the windows themselves by recursively subdividing based on
 -- splitRatios found in a SUNZipper
-flatten :: (Integral t1, Integral t) => SUNZipper -> t -> t1 -> [((t, t1, t, t1), SUNZipper)]
-flatten !szip wth hgt = flatten' (top szip) (0,0,wth,hgt)
+-- flatten :: (Integral t1, Integral t) => SUNZipper -> [Dock] -> t -> t1 -> [((t, t1, t, t1), SUNZipper)]
+flatten !szip ds wth hgt = flatten' (top szip) $ adjustForDocks wth hgt ds
   where flatten' sz@(SZ (Frame _) _) dims = [(dims,sz)]
         flatten' sz@(SZ (Split (V r) _ _) _) (x,y,w,h) =
           let  luDim = (x,y,r.*.w,h)
@@ -249,12 +287,13 @@ flattenGlobal scr =
         h' = get height scr
         x' = get xPos scr
         y' = get yPos scr
-        loc = flatten t w' h'
+        loc = flatten t [] w' h'
     in map (\((x,y,w,h),sz) -> ((fip x + fip x', fip y + fip y', fid w, fid h),sz)) loc
 
-flattenToDimWins :: Dimension -> Dimension -> SUNZipper
+-- | TODO: account for docks
+flattenToDimWins :: Dimension -> Dimension -> [Dock] -> SUNZipper
                     -> [((Position, Position, Dimension, Dimension), Window)]
-flattenToDimWins sw sh !sz = map pullWin $ filter isWin $ flatten sz sw sh
+flattenToDimWins sw sh ds !sz = map pullWin $ filter isWin $ flatten sz ds sw sh
     where isWin (_,t) = (/= Frame Nothing) $ get focus t
           pullWin (d,SZ (Frame (Just a)) _) = (convert d,a)
           pullWin (d,SZ (Frame Nothing) _) = (convert d, 0) -- ERROR
@@ -344,29 +383,6 @@ changeFocus2 dir q@(fsn,scrs)
           U -> min (abs ((x + fip h)-(x' + fip w'))) (abs (x - x'))
           D -> min (abs ((x + fip h)-(x' + fip w'))) (abs (x - x'))
         focusCand = minimumBy (comparing (finder' . fst)) cands
-
--- | Searches for the windows 'closest' to the specified direction
-changeFocus :: Direction -> Dimension -> Dimension -> SUNZipper -> SUNZipper
-changeFocus dir scrw scrh !sz =
-  let ts = flatten sz scrw scrh
-      (Just curW@((x,y,w,h),_)) = find ((==) sz . snd) ts
-      ts' = Data.List.delete curW ts
-      finder ((x',y',w',h'),_) = case dir of
-        L -> abs (x' + w' - x) < 10
-        R -> abs (x + w - x') < 10
-        U -> abs (y' + h' - y) < 10
-        D -> abs (y + h - y') < 10
-      cands = filter finder ts'
-      finder' (x',y',w',h') = case dir of
-        L -> min (abs ((y + h)-(y' + h'))) (abs (y - y'))
-        R -> min (abs ((y + h)-(y' + h'))) (abs (y - y'))
-        U -> min (abs ((x + h)-(x' + w'))) (abs (x - x'))
-        D -> min (abs ((x + h)-(x' + w'))) (abs (x - x'))
-      newFocus = snd $ minimumBy (comparing (finder' . fst)) cands
-      -- | TODO: can just use finder' only here and replace cands with ts'
-      -- in above line?
-  in if null cands then sz else newFocus
-
 
 isVSplit :: SUNPath -> Bool
 isVSplit (LU (V _) _) = True

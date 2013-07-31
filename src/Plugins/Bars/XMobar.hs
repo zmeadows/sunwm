@@ -61,3 +61,11 @@ formatStrXMobar (fg,bg) !str =
 getWinTitles :: [Window] -> SUN [String]
 getWinTitles !wins = asks display >>= \dis -> catMaybes <$> ioMap (fetchName dis) wins
 
+data BarConf = BarConf
+    { _focusColor       :: !(String, String)
+    , _hiddenColor      :: !(String, String)
+    , _hiddenEmptyColor :: !(String, String)
+    , _titleColor       :: !(String, String)
+    } deriving (Show, Eq)
+
+
