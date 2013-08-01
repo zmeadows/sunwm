@@ -22,17 +22,14 @@ import Sunwm.Util
 
 import Graphics.X11
 import Data.Bits hiding (shift)
-import System.IO
 import qualified Data.Map as M
-import Control.Concurrent (threadDelay)
-import System.Process
 
 import Sunwm.Extra.Bars.XMobar
-import Sunwm.Extra.Bars.Util
 
 main :: IO ()
 main = sunwm (xmobar myBarConf defaultConfig) >>= print
 
+myBarConf :: BarConf
 myBarConf = BarConf {
     _focusColor       = ("#222222", "#dddd77"),
     _hiddenColor      = ("#f8f8f8", "#222222"),
