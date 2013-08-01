@@ -1,4 +1,19 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving, BangPatterns, TemplateHaskell, TypeOperators #-}
+
+-----------------------------------------------------------------------------
+---- |
+---- Module      :  Sunwm.Core
+---- Copyright   :  (c) Zac Meadows 2011
+---- License     :  WTFPL 2.0 (see LICENSE)
+----
+---- Maintainer  :  zmeadows@gmail.com
+---- Stability   :  unstable
+---- Portability :  not portable
+----
+---- Interaction with XLib and STree.hs
+----
+-----------------------------------------------------------------------------
+
 module Sunwm.Core where
 
 import Sunwm.STree
@@ -13,7 +28,6 @@ import Control.Arrow
 import Control.Monad.State.Strict hiding (gets)
 import Control.Monad.Reader hiding (asks)
 import Control.Monad.Error
---import Control.Concurrent (threadDelay)
 
 import Data.Maybe
 import Data.List ((\\), find, nub)
@@ -48,7 +62,6 @@ data UserConf = UserConf
 
 -- data MouseFocusStyle = None | Click | Follow
 
-
 data SUNConf = SUNConf
     { _display            :: !Display
     , _root               :: !Window
@@ -73,10 +86,9 @@ banish :: SUN ()
 banish = do
     dis     <- asks display
     rt      <- asks root
-    -- bh      <- fip <$> gets barHeight
     (sw,sh) <- getFocusScrDims
-    -- (x,y)   <- getFocusScrPos
-    liftIO $ warpPointer dis none rt 0 0 0 0 (fip sw) (fip sh)
+    (x,y)   <- getFocusScrPos
+    liftIO $ warpPointer dis none rt 0 0 0 0 (x + fip sw) (y + fip sh)
 
 -- | Gives the dimensions of the currently focused screen
 getFocusScrDims :: SUN (Dimension,Dimension)
@@ -100,9 +112,9 @@ setup !uc = do
   ms <- getModifierMapping dis
   nmlck <- foldr (.|.) 0 <$> sequence [ do
           ks <- keycodeToKeysym dis kc 0
-          if ks == xK_Num_Lock
-            then return (setBit 0 (fromIntegral m))
-            else return (0 :: KeyMask)
+          return $ if ks == xK_Num_Lock
+            then setBit 0 (fromIntegral m)
+            else 0 :: KeyMask
           | (m, kcs) <- ms, kc <- kcs, kc /= 0]
   selectInput dis defRt $ substructureRedirectMask .|. substructureNotifyMask .|.
                           structureNotifyMask -- .|. buttonPressMask .|. buttonReleaseMask
@@ -126,15 +138,15 @@ arrangeN n = asks display >>= \dis -> do
     t <- L.get tree <$> focused <$> gets (workspaces . screenN n)
     (sx,sy) <- (L.get xPos &&& L.get yPos) <$> gets (screenN n)
     (sw,sh) <- (L.get width &&& L.get height) <$> gets (screenN n)
-    ds <- (L.get docks) <$> gets (screenN n)
+    ds <- L.get docks <$> gets (screenN n)
     bw <- (2 *) <$> asks (borderWidth . userConf)
 
     let ws = flattenToDimWins sw sh ds t
         putWindow ((x,y,w,h),win) = moveResizeWindow dis win (x + sx) (y + sy) (w - bw) (h - bw)
     when (length ws > 1 || L.get trail t /= []) $ liftIO $ mapM_ putWindow ws
-    when (length ws == 1 && L.get trail t == []) $ do
+    when (length ws == 1 && null (L.get trail t)) $ do
         let ((x,y,w,h),win) = head ws
-        liftIO $ moveResizeWindow dis win sx (sy + y) w h
+        liftIO $ moveResizeWindow dis win (sx + x) (sy + y) w h
 
 -- | Map all windows that should be visible, unmap all windows that shouldn't.
 -- TODO: make this more efficient (only map things that aren't already mapped, same for unmapped)
@@ -144,14 +156,12 @@ refresh = do
     dis <- asks display
     scrs <- elems <$> gets screens
     let vs = concatMap getScrVisWins scrs
-        hs = (concatMap getScrAllWins scrs) \\ vs
+        hs = concatMap getScrAllWins scrs \\ vs
     ioMap_ (unmapWindow dis) hs >> ioMap_ (mapWindow dis) vs
     runStackHook
 
 runStackHook :: SUN ()
-runStackHook = do
-    sh <- asks (stackHook . userConf)
-    sh
+runStackHook = asks userConf >>= L.get stackHook
 
 ioMap_ :: MonadIO m => (a -> IO b) -> [a] -> m ()
 ioMap_ f !l = liftIO $ mapM_ f l
@@ -197,12 +207,9 @@ updateFocusN scrn = do
 
     case fw of
       Just w -> do
-        if null tl
-          then liftIO $ setWindowBorderWidth dis w 0
-          else liftIO $
-            when (scrn == fscn) $ do
-              setWindowBorderWidth dis w bw
-              setWindowBorder dis w fc
+        liftIO $ if null tl
+          then setWindowBorderWidth dis w 0
+          else when (scrn == fscn) $ setWindowBorderWidth dis w bw >> setWindowBorder dis w fc
         when (scrn == fscn) $ liftIO $ setInputFocus dis w revertToParent 0
       Nothing -> do
         when (scrn == fscn) $ liftIO $ setInputFocus dis rt revertToParent 0
@@ -222,7 +229,7 @@ drawFrameBorder = do
     t <- gets (tree . focusWS)
     let mt = find ((==) t . snd) $ flatten t ds sw sh
 
-    when (isJust mt && (L.get trail t) /= []) $ liftIO $ do
+    when (isJust mt && L.get trail t /= []) $ liftIO $ do
         let ((x,y,w,h),_) = fromJust mt
         gc <- createGC dis rt
         setLineAttributes dis gc (fi bw) lineDoubleDash capButt joinMiter
@@ -238,6 +245,7 @@ react sun = sun >> arrange >> refresh >> updateFocus
 swapToDir :: Direction -> SUN ()
 swapToDir dir = react $ screens =. swap dir
 
+swapWStoScr :: Int -> SUN ()
 swapWStoScr n = sloppyGuard $ react $ screens =. swapWSscr n
 
 -- | Make sure a function that modifies state meets certain criteria before
@@ -283,7 +291,7 @@ removeWindow :: Window -> SUN ()
 removeWindow w = react $ do
   fw <- focusedWin
   when (isJust fw) $ when (fromJust fw == w) $ raiseHidden R
-  screens =. (annihilateWin w)
+  screens =. annihilateWin w
   inF <- gets (inFullScreen . focusWS)
   when inF $ (inFullScreen . focusWS) =: False
 
@@ -332,8 +340,8 @@ changeWS :: Int -> SUN ()
 changeWS wsn = sloppyGuard $ react $ do
   fwsn <- fst <$> gets (workspaces . focusScr)
   when (fwsn /= wsn) $ do
-    (lastWS . focusScr) =: fwsn
-    (focusScr =. changeWorkspace wsn)
+    lastWS . focusScr =: fwsn
+    focusScr =. changeWorkspace wsn
 
 changeScr :: Int -> SUN ()
 changeScr scrn = react $ do
@@ -445,7 +453,7 @@ detectDocks = do
     dis <- asks display ; rt <- asks root
     (_,_,qt) <- liftIO $ queryTree dis rt
     qt' <- nub <$> filterM isDock qt
-    screens =. mapF (\s -> L.set docks [] s)
+    screens =. mapF (L.set docks [])
     mapM_ addDock qt'
 
 addDock :: Window -> SUN ()
@@ -454,7 +462,7 @@ addDock win = do
     scrNum <- fromJust <$> screenOfPoint (x + fip (div w 2), y + fip (div h 2)) <$> gets screens
     (sx,sy) <- (L.get xPos &&& L.get yPos) <$> gets (screenN scrNum)
     struts <- fromJust <$> getProp32s "_NET_WM_STRUT_PARTIAL" win
-    (docks . screenN scrNum) =. ((constructDock win (x - sx) (y - sy) w h struts):)
+    (docks . screenN scrNum) =. (constructDock win (x - sx) (y - sy) w h struts :)
 
 -- | TODO: return Maybe, in case window doesn't exist
 getWinPosDim :: Window -> SUN (Position,Position,Dimension,Dimension)
@@ -477,7 +485,7 @@ eventDispatch :: Event -> SUN ()
 
 eventDispatch !(UnmapEvent {ev_window = w, ev_send_event = synthetic}) =
     if synthetic
-        then (removeWindow w)
+        then removeWindow w
         else detectDocks
 
 -- | TODO: deal with splash/dialog etc (wait until float support added)
@@ -495,19 +503,20 @@ eventDispatch !(MapRequestEvent {ev_window = win}) = react $ do
     when isDia $ liftIO $ setInputFocus dis win revertToParent 0
     when isDk $ detectDocks >> arrange >> refresh
 
-eventDispatch !(DestroyWindowEvent {ev_window = w}) = removeWindow w >> detectDocks -- is this necessary (detectDocks)
+-- | TODO: check if detectDocks is actually needed here
+eventDispatch !(DestroyWindowEvent {ev_window = w}) = removeWindow w >> detectDocks
 
-eventDispatch !evt@(ConfigureRequestEvent _ _ _ dis _ win x y w h bw a d vm) = react $ do
+eventDispatch evt@(ConfigureRequestEvent _ _ _ dis _ win x y w h bw a d vm) = react $ do
     ws  <- flattenToWins <$> gets (tree . focusWS)
     wa <- liftIO $ getWindowAttributes dis win
-    if win `notElem` ws
-        then liftIO $ configureWindow dis win vm $ WindowChanges x y w h bw a d
-        else liftIO $ allocaXEvent $ \ev -> do
+    liftIO $ if win `notElem` ws
+        then configureWindow dis win vm $ WindowChanges x y w h bw a d
+        else allocaXEvent $ \ev -> do
                  setEventType ev configureNotify
                  setConfigureEvent ev win win
                      (wa_x wa) (wa_y wa) (wa_width wa)
                      (wa_height wa) (ev_border_width evt) none
-                     (wa_override_redirect $ wa)
+                     (wa_override_redirect wa)
                  sendEvent dis win False 0 ev
     liftIO $ sync dis False
     detectDocks >> arrange >> refresh
@@ -547,12 +556,12 @@ eventDispatch !evt@(KeyEvent {ev_event_type = et}) = when (et == keyPress) $ do
           (Just k) -> k
           Nothing -> return ()
 
-eventDispatch !evt@(CrossingEvent {ev_window = w, ev_mode = em, ev_event_type = et}) =
+eventDispatch !(CrossingEvent {ev_window = w, ev_mode = em, ev_event_type = et}) =
     when (et == enterNotify && em == notifyNormal) $ do
       aws <- getAllWins
       when (w `elem` aws) $ react $ screens =. focusToWin w
 
-eventDispatch !evt@(PropertyEvent {}) = runStackHook
+eventDispatch !(PropertyEvent {}) = runStackHook
 
 -- | Ignore all other event types for which specific behavior isn't defined
 eventDispatch !evt
@@ -567,4 +576,4 @@ sunwm !uc = do
     conf <- setup uc
     scrRecs <- getScreenInfo $ L.get display conf
     let st = initState (length $ L.get wsNames uc) scrRecs
-    runSUN (grabPrefixTops >> (L.get initHook uc) >> detectDocks >> eventLoop) st conf
+    runSUN (grabPrefixTops >> L.get initHook uc >> detectDocks >> eventLoop) st conf

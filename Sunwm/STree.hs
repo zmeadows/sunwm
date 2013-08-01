@@ -1,6 +1,5 @@
 {-# LANGUAGE BangPatterns, TemplateHaskell, TypeOperators #-}
 
-
 -----------------------------------------------------------------------------
 ---- |
 ---- Module      :  STree
@@ -34,8 +33,7 @@ import Control.Category ((.))
 --import Control.Arrow (first, second, (&&&))
 
 import Graphics.X11.Types (Window)
-import Graphics.X11.Xlib.Types (Dimension, Position, Rectangle(..), Pixel)
-import Data.Int (Int32)
+import Graphics.X11.Xlib.Types (Dimension, Position, Rectangle(..))
 
 data Direction = L | R | U | D
     deriving (Show,Eq)
@@ -111,9 +109,10 @@ emptyWS :: Workspace
 emptyWS = Workspace emptyZipper [] False
 
 emptyScr :: Int -> Rectangle -> SUNScreen
-emptyScr !nws !(Rectangle x y w h) = SUNScreen wss x y w h 1 [] Nothing
+emptyScr !nws (Rectangle x y w h) = SUNScreen wss x y w h 1 [] Nothing
     where wss = fromList 1 $ zip [1..nws] $ replicate nws emptyWS
 
+initFocusHistory :: FocusHistory
 initFocusHistory = FocusHistory Nothing Nothing Nothing Nothing
 
 initState :: Int -> [Rectangle] -> SUNState
@@ -162,7 +161,7 @@ doSplit splitFunc !ws = updateHidden $ modify tree splitFunc ws
 
 -- | Returns True if a Frame is focused, rather than a Split
 isFrame :: SUNZipper -> Bool
-isFrame !(SZ (Frame _) _) = True
+isFrame (SZ (Frame _) _) = True
 isFrame !_ = False
 
 -- | Return to the top of the SUNZipper
@@ -185,8 +184,8 @@ killFrame !ws
   where win = fromFrame $ get tree ws
         tr = get (trail . tree) ws
         hideWin = modify hidden (maybeToList win ++)
-        deleteFrame !(SZ (Frame _) (LU _ rd:ps)) = traverse right (SZ rd ps)
-        deleteFrame !(SZ (Frame _) (RD _ lu:ps)) = traverse left (SZ lu ps)
+        deleteFrame (SZ (Frame _) (LU _ rd:ps)) = traverse right (SZ rd ps)
+        deleteFrame (SZ (Frame _) (RD _ lu:ps)) = traverse left (SZ lu ps)
         deleteFrame !sz = sz
 
 fromFrame :: SUNZipper -> Maybe Window
@@ -201,7 +200,7 @@ isRD (RD _ _) = True
 isRD _ = False
 
 isSplit :: SUNZipper -> Bool
-isSplit !(SZ (Split {}) _) = True
+isSplit (SZ (Split {}) _) = True
 isSplit !_ = False
 
 -- | Creates a list of functions, which if applied to a SUNZipper brought
@@ -233,16 +232,16 @@ fip x = fromIntegral x :: Position
 fid :: Integral a => a -> Dimension
 fid x = fromIntegral x :: Dimension
 
---adjustForDocks :: Dimension -> Dimension -> [Dock]
---                -> (Position, Position, Dimension, Dimension)
+adjustForDocks :: Dimension -> Dimension -> [Dock]
+              -> (Dimension, Dimension, Dimension, Dimension)
 adjustForDocks sw sh ds =
-    if (null ds)
+    if null ds
         then (0,0,sw,sh)
         else let ls = leftShave ds
                  rs = rightShave sw ds
                  ts = topShave ds
                  bs = bottomShave sh ds
-             in (fi ls, fi ts, fi $ sw - ls - rs, fi $ sh - ts - bs)
+             in (fi ls, ts, fi $ sw - ls - rs, fi $ sh - ts - bs)
 
 leftShave :: [Dock] -> Dimension
 leftShave ds = let lbs = filter (\d -> get barPosition d == L) ds
@@ -251,7 +250,7 @@ leftShave ds = let lbs = filter (\d -> get barPosition d == L) ds
 
 rightShave :: Dimension -> [Dock] -> Dimension
 rightShave sw ds = let rbs = filter (\d -> get barPosition d == R) ds
-                       rightGap d = sw - (fid $ get barX d)
+                       rightGap d = sw - fid (get barX d)
                    in if null rbs then 0 else maximum $ map rightGap rbs
 
 topShave :: [Dock] -> Dimension
@@ -261,7 +260,7 @@ topShave ds = let tbs = filter (\d -> get barPosition d == U) ds
 
 bottomShave :: Dimension -> [Dock] -> Dimension
 bottomShave sh ds = let bbs = filter (\d -> get barPosition d == D) ds
-                        bottomGap d = sh - (fid $ get barY d)
+                        bottomGap d = sh - fid (get barY d)
                     in if null bbs then 0 else maximum $ map bottomGap bbs
 
 constructDock :: Window -> Position -> Position -> Dimension -> Dimension -> [CLong] -> Dock
@@ -271,13 +270,15 @@ constructDock win x y w h (l:r:t:b:_) = Dock x y w h dir win
               | t > 0 = U
               | b > 0 = D
               | otherwise = error "SOMETHING HAS GONE HORRIBLY WRONG"
+constructDock _ _ _ _ _ _ = error "SOMETHING HAS GONE HORRIBLY WRONG"
 
 -- | 'flatten' is the core function of the window manager, calculating the size
 -- of the windows themselves by recursively subdividing based on
 -- splitRatios found in a SUNZipper
--- flatten :: (Integral t1, Integral t) => SUNZipper -> [Dock] -> t -> t1 -> [((t, t1, t, t1), SUNZipper)]
+flatten :: SUNZipper -> [Dock] -> Dimension -> Dimension
+            -> [((Position, Position, Dimension, Dimension), SUNZipper)]
 flatten !szip ds wth hgt = flatten' (top szip) $ adjustForDocks wth hgt ds
-  where flatten' sz@(SZ (Frame _) _) dims = [(dims,sz)]
+  where flatten' sz@(SZ (Frame _) _) dims = [(convert dims,sz)]
         flatten' sz@(SZ (Split (V r) _ _) _) (x,y,w,h) =
           let  luDim = (x,y,r.*.w,h)
                rdDim = (x+(r.*.w),y,w - (r.*.w),h)
@@ -286,7 +287,9 @@ flatten !szip ds wth hgt = flatten' (top szip) $ adjustForDocks wth hgt ds
           let luDim = (x,y,w,r.*.h)
               rdDim = (x,y+(r.*.h),w,h-(r.*.h))
           in flatten' (left sz) luDim ++ flatten' (right sz) rdDim
+        convert (x,y,w,h) = (fip x, fip y, fid w, fid h)
 
+flattenGlobal :: SUNScreen -> [((Position, Position, Dimension, Dimension), SUNZipper)]
 flattenGlobal scr =
     let t = (get tree . focused . get workspaces) scr
         w' = get width scr
@@ -297,7 +300,7 @@ flattenGlobal scr =
     in map (\((x,y,w,h),sz) -> ((fip x + fip x', fip y + fip y', fid w, fid h),sz)) loc
 
 flattenToDimWins :: Dimension -> Dimension -> [Dock] -> SUNZipper
-                    -> [((Position, Position, Dimension, Dimension), Window)]
+                   -> [((Position, Position, Dimension, Dimension), Window)]
 flattenToDimWins sw sh ds !sz = map pullWin $ filter isWin $ flatten sz ds sw sh
     where isWin (_,t) = (/= Frame Nothing) $ get focus t
           pullWin (d,SZ (Frame (Just a)) _) = (convert d,a)
@@ -311,6 +314,7 @@ flattenToWins !sz = flattenToWins' $ top sz
         flattenToWins' (SZ (Frame (Just w)) _) = [w]
         flattenToWins' !sz' = flattenToWins' (left sz') ++ flattenToWins' (right sz')
 
+flattenGlobalToZips :: SUNScreen -> [SUNZipper]
 flattenGlobalToZips scr =
     let t = (get tree . focused . get workspaces) scr
     in flattenToZips t
@@ -322,20 +326,21 @@ flattenToZips !sz = flattenToZips' $ top sz
         flattenToZips' !sz' = flattenToZips' (left sz') ++ flattenToZips' (right sz')
 
 screenOfWin :: Window -> FocusMap Int SUNScreen -> Maybe Int
-screenOfWin win q@(fsn,scrs) =
+screenOfWin win q =
     let ts = mapElems flattenGlobalToZips q
-    in fmap ((+) 1) $ findIndex (\zs -> elem (Just win) (map fromFrame zs)) ts
+    in fmap (1 +) $ findIndex (elem (Just win) . map fromFrame) ts
 
 pointInRect :: (Position, Position) -> (Position,Position,Dimension,Dimension) -> Bool
 pointInRect (x,y) (x',y',w',h') = (x >= x') && (x <= x' + fip w') && (y >= y') && (y <= y' + fip h')
 
-screenOfPoint (x,y) q@(fsn,scrs) = ((+) 1) <$> findIndex (\scrRec -> pointInRect (x,y) scrRec) scrRecs
+screenOfPoint :: (Position,Position) -> FocusMap Int SUNScreen -> Maybe Int
+screenOfPoint (x,y) q = (1 +) <$> findIndex (pointInRect (x,y)) scrRecs
   where scrToRec scr = (get xPos scr, get yPos scr, get width scr, get height scr)
         scrRecs = mapElems scrToRec q
 
 focusToFrameAt :: (Position,Position) -> FocusMap Int SUNScreen -> FocusMap Int SUNScreen
-focusToFrameAt (x,y) q@(fsn,scrs)
-    | nscrn == Nothing = q
+focusToFrameAt (x,y) q
+    | isNothing nscrn = q
     | otherwise =
         let nscrs = newFocus (fromJust nscrn) q
             wss = get workspaces $ focused nscrs
@@ -343,13 +348,13 @@ focusToFrameAt (x,y) q@(fsn,scrs)
             fzs = find (\((x',y',w',h'),_) -> pointInRect (x,y) (x',y',w',h')) zs
             wss' = adjust (set tree $ snd $ fromJust fzs) wss
             nscrs' = adjust (set workspaces wss') nscrs
-        in if (isJust fzs) then nscrs' else q
+        in if isJust fzs then nscrs' else q
   where nscrn = screenOfPoint (x,y) q
 
 
 focusToWin :: Window -> FocusMap Int SUNScreen -> FocusMap Int SUNScreen
-focusToWin win q@(fsn,scrs)
-    | nscrn == Nothing = q
+focusToWin win q
+    | isNothing nscrn = q
     | otherwise =
         let nscrs = newFocus (fromJust nscrn) q
             wss = get workspaces $ focused nscrs
@@ -361,17 +366,17 @@ focusToWin win q@(fsn,scrs)
 
 -- | version after adding multi monitor focus switching
 changeFocus :: Direction -> FocusMap Int SUNScreen -> FocusMap Int SUNScreen
-changeFocus dir q@(fsn,scrs)
+changeFocus dir q
     | null cands = q
-    | fromFrame (snd focusCand) == Nothing =
+    | isNothing (fromFrame (snd focusCand)) =
         let a = mapElems flattenGlobal q
-            z = 1 + (fromJust $ findIndex (elem focusCand) a)
+            z = 1 + fromJust (findIndex (elem focusCand) a)
             nscrs = newFocus z q
             wss = get workspaces $ focused nscrs
             wss' = adjust (set tree $ snd focusCand) wss
             nscrs' = adjust (set workspaces wss') nscrs
         in nscrs'
-    | otherwise  = focusToWin (fromJust $ fromFrame $ snd $ focusCand) q
+    | otherwise  = focusToWin (fromJust $ fromFrame $ snd focusCand) q
   where ts = concat $ mapElems flattenGlobal q
         sz = get tree $ focused $ get workspaces $ focused q
         (Just curW@((x,y,w,h),_)) = find ((==) sz . snd) ts
@@ -404,35 +409,35 @@ isHSplit _ = False
 
 resizeParent :: SplitRatio -> (SUNPath -> Bool) -> [SUNPath] -> [SUNPath]
 resizeParent dr pathTypeChecker paths
-  | psl == paths || psr == [] = paths
+  | psl == paths || null psr = paths
   | otherwise = psl ++ (head psr <-> dr : tail psr)
   where (psl,psr) = break pathTypeChecker paths
 
 -- | TODO: condense 'resize' into one function
 resize :: Direction -> SplitRatio -> SUNZipper -> SUNZipper
 resize R dr !sz
-  | get trail sz == [] = sz
+  | null (get trail sz) = sz
   | isHSplit p = set trail (resizeParent dr isVSplit pss) sz
   | isVSplit p = set trail (p <-> dr:ps) sz
   | otherwise = sz
  where pss@(p:ps) = get trail sz
 
 resize L dr !sz
-  | get trail sz == [] = sz
+  | null (get trail sz) = sz
   | isHSplit p = set trail (resizeParent (-dr) isVSplit pss) sz
   | isVSplit p = set trail (p <-> (-dr):ps) sz
   | otherwise = sz
  where pss@(p:ps) = get trail sz
 
 resize U dr !sz
-  | get trail sz == [] = sz
+  | null (get trail sz) = sz
   | isVSplit p = set trail (resizeParent (-dr) isHSplit pss) sz
   | isHSplit p = set trail (p <-> (-dr):ps) sz
   | otherwise = sz
  where pss@(p:ps) = get trail sz
 
 resize D dr !sz
-  | get trail sz == [] = sz
+  | null (get trail sz) = sz
   | isVSplit p = set trail (resizeParent dr isHSplit pss) sz
   | isHSplit p = set trail (p <-> dr:ps) sz
   | otherwise = sz
@@ -546,7 +551,7 @@ moveToWS nwsn m@(fwsn,_)
         sfw = fromFrame $ get tree $ m <!> nwsn
 
 moveToScr :: Int -> FocusMap Int SUNScreen -> FocusMap Int SUNScreen
-moveToScr nscn m@(fscn,scs)
+moveToScr nscn m@(fscn,_)
     | nscn == fscn || isNothing fw = m
     | otherwise = newFocus nscn $ adjustK fscn (set focusWSscr ws') $ adjustK nscn (set focusWSscr ows') m
   where ws = get focusWSscr $ focused m
@@ -557,27 +562,27 @@ moveToScr nscn m@(fscn,scs)
         ows' = modify tree (replace fw) $ modify hidden (maybeToList ofw ++) ows
 
 swap :: Direction -> FocusMap Int SUNScreen -> FocusMap Int SUNScreen
-swap dir m@(fscn,scs) =
+swap dir m@(fscn,_) =
     adjustK nscn (modify (tree . focusWSscr) (replace fw))
     $ changeFocus dir
     $ adjustK fscn (modify (tree . focusWSscr) (replace nw))
-    $ (if (isJust nw) then (annihilateWin $ fromJust nw) else id)
-    $ (if (isJust fw) then (annihilateWin $ fromJust fw) else id) m
+    $ maybe id annihilateWin nw
+    $ maybe id annihilateWin fw m
   where m'@(nscn,_) = changeFocus dir m
         nw = fromFrame $ get (tree . focusWSscr) $ focused m'
         fw = fromFrame $ get (tree . focusWSscr) $ focused m
 
 shift :: Direction -> FocusMap Int SUNScreen -> FocusMap Int SUNScreen
-shift dir m@(fscn, scs)
-    | fw == Nothing || nw == Nothing && fw == Nothing = changeFocus dir m
+shift dir m@(fscn,_)
+    | isNothing fw || isNothing nw && isNothing fw = changeFocus dir m
     | nw == fw = m
     | otherwise =
         adjustK nscn (modify (tree . focusWSscr) (replace fw))
         $ changeFocus dir
         $ adjustK nscn (modify (hidden . focusWSscr) (maybeToList nw ++))
         $ adjustK fscn (modify focusWSscr (cycleHidden R))
-        $ (if (isJust nw) then (annihilateWin $ fromJust nw) else id)
-        $ (if (isJust fw) then (annihilateWin $ fromJust fw) else id) m
+        $ maybe id annihilateWin nw
+        $ maybe id annihilateWin fw m
   where m'@(nscn,_) = changeFocus dir m
         nw = fromFrame $ get (tree . focusWSscr) $ focused m'
         fw = fromFrame $ get (tree . focusWSscr) $ focused m
@@ -586,10 +591,11 @@ only :: Workspace -> Workspace
 only ws =
     let fw = fromFrame $ get tree ws
         aws = getWSAllWins ws
-        nhs = if fw == Nothing then aws else delete (fromJust fw) aws
+        nhs = if isNothing fw then aws else delete (fromJust fw) aws
     in set hidden nhs $ set tree (SZ (Frame fw) []) ws
 
-swapWSscr nscn m@(fscn,scs) =
+swapWSscr :: Int -> FocusMap Int SUNScreen -> FocusMap Int SUNScreen
+swapWSscr nscn m@(fscn,_) =
     let fws = get focusWSscr $ focused m
         ows = get focusWSscr $ m <!> nscn
     in adjustK fscn (set focusWSscr ows) $ adjustK nscn (set focusWSscr fws) m
