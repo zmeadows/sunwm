@@ -33,8 +33,8 @@ defaultConfig = UserConf {
     _wsNames       = workspaceNames,
     _prefixKey     = (0, xK_F13),
     _terminal      = "urxvtc +sb",
-    _initHook      = return () :: SUN (),
-    _stackHook     = return () :: SUN ()
+    _initHook      = return (),
+    _stackHook     = return ()
     }
 
 defaultKeys :: M.Map (KeyMask, KeySym) (SUN ())
@@ -83,21 +83,6 @@ defaultTopKeys = M.fromList $
     , ((mod1Mask, xK_Tab), toggleWS)
     , ((mod1Mask .|. shiftMask, xK_q), quit)
     ] ++ workspaceSendBinds ++ workspaceMoveBinds
-      ++ screenMoveBinds    ++ screenSendBinds ++ screenSwapBinds
-
--- | TODO: make sure this doesn't try to switch to non-existent screens?
--- just make user assign prefix to screen mov ebut assign binds in init
-screenMoveBinds :: [((KeyMask, KeySym),SUN ())]
-screenMoveBinds = map (\(k,n) -> ((mod4Mask, k), changeScr n))
-                     $ zip [xK_1..] [1..2]
-
-screenSwapBinds :: [((KeyMask, KeySym),SUN ())]
-screenSwapBinds = map (\(k,n) -> ((mod4Mask .|. controlMask, k), swapWStoScr n))
-                     $ zip [xK_1..] [1..2]
-
-screenSendBinds :: [((KeyMask, KeySym),SUN ())]
-screenSendBinds = map (\(k,n) -> ((mod4Mask .|. shiftMask, k), moveWinToScr n))
-                     $ zip [xK_1..] [1..2]
 
 workspaceMoveBinds :: [((KeyMask, KeySym),SUN ())]
 workspaceMoveBinds = map (\(k,n) -> ((mod1Mask, k), changeWS n))
