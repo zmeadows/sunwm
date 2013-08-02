@@ -15,7 +15,6 @@
 -----------------------------------------------------------------------------
 
 module Sunwm.STree where
--- | TODO: module exports
 
 import Sunwm.FocusMap
 
