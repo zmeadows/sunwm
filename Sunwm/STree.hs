@@ -29,7 +29,6 @@ import Foreign.C.Types (CLong)
 
 import Control.Applicative((<$>))
 import Control.Category ((.))
---import Control.Arrow (first, second, (&&&))
 
 import Graphics.X11.Types (Window)
 import Graphics.X11.Xlib.Types (Dimension, Position, Rectangle(..))
