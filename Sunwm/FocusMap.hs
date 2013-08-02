@@ -6,7 +6,7 @@ module Sunwm.FocusMap where
 -- needed to keep track of which screen/workspace is focused
 -- in sunwm.
 
-import qualified Data.Map as M
+import qualified Data.Map.Strict as M
 import Control.Arrow (second)
 import Data.Maybe (fromJust, fromMaybe)
 
