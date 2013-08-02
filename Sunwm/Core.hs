@@ -34,8 +34,8 @@ import Data.List ((\\), find, nub)
 import Data.Label ((:->))
 import Data.Label.PureM ((=:),(=.),gets,asks)
 import qualified Data.Label as L
-import Data.Map (Map)
-import qualified Data.Map as M
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as M
 import Data.Bits hiding (shift)
 
 import Graphics.X11.Xlib hiding (refreshKeyboardMapping)
@@ -156,7 +156,6 @@ refresh = do
     let vs = concatMap getScrVisWins scrs
         hs = concatMap getScrAllWins scrs \\ vs
     ioMap_ (unmapWindow dis) hs >> ioMap_ (mapWindow dis) vs
-    runStackHook
 
 runStackHook :: SUN ()
 runStackHook = asks userConf >>= L.get stackHook
@@ -237,7 +236,7 @@ drawFrameBorder = do
         freeGC dis gc
 
 react :: SUN () -> SUN ()
-react sun = sun >> arrange >> refresh >> updateFocus
+react sun = sun >> arrange >> refresh >> updateFocus >> runStackHook
 
 -- | Swap the content (empty or not) of two adjacent frames in specified direction.
 swapToDir :: Direction -> SUN ()
@@ -577,9 +576,22 @@ eventDispatch !evt
 clientMask :: EventMask
 clientMask = propertyChangeMask .|. enterWindowMask
 
+generateScrBinds :: Int -> SUNConf -> IO SUNConf
+generateScrBinds 1 uc = return uc
+generateScrBinds ns uc = do
+    let screenMoveBinds = map (\(k,n) -> ((mod4Mask, k), changeScr n))
+                     $ zip [xK_1..] [1..ns]
+        screenSwapBinds = map (\(k,n) -> ((mod4Mask .|. controlMask, k), swapWStoScr n))
+                     $ zip [xK_1..] [1..ns]
+        screenSendBinds = map (\(k,n) -> ((mod4Mask .|. shiftMask, k), moveWinToScr n))
+                     $ zip [xK_1..] [1..ns]
+    return $ L.modify (topKeyBinds . userConf)
+        (\tkb -> M.union tkb $ M.fromList $ screenMoveBinds ++ screenSendBinds ++ screenSwapBinds) uc
+
 sunwm :: UserConf -> IO (Either String ())
 sunwm !uc = do
-    conf <- setup uc
-    scrRecs <- getScreenInfo $ L.get display conf
+    sc <- setup uc
+    scrRecs <- getScreenInfo $ L.get display sc
     let st = initState (length $ L.get wsNames uc) scrRecs
-    runSUN (grabPrefixTops >> L.get initHook uc >> detectDocks >> eventLoop) st conf
+    sc' <- generateScrBinds (length scrRecs) sc
+    runSUN (grabPrefixTops >> L.get (initHook . userConf) sc' >> detectDocks >> eventLoop) st sc'
