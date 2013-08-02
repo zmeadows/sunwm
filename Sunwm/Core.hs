@@ -98,8 +98,6 @@ getFocusScrDims = (L.get width &&& L.get height) <$> gets focusScr
 getFocusScrPos :: SUN (Position,Position)
 getFocusScrPos = (L.get xPos &&& L.get yPos) <$> gets focusScr
 
-
-
 -- | Does basic Xlib setup and generates a SUNConf object based on
 -- user-specified settings in a UserConf.
 setup :: UserConf -> IO SUNConf
@@ -368,6 +366,12 @@ isFullscreen = isInProperty "_NET_WM_STATE" "_NET_WM_STATE_FULLSCREEN"
 isSplash :: Window -> SUN Bool
 isSplash = isInProperty "_NET_WM_WINDOW_TYPE" "_NET_WM_WINDOW_TYPE_SPLASH"
 
+isUtility :: Window -> SUN Bool
+isUtility = isInProperty "_NET_WM_WINDOW_TYPE" "_NET_WM_WINDOW_TYPE_UTILITY"
+
+isMenu :: Window -> SUN Bool
+isMenu = isInProperty "_NET_WM_WINDOW_TYPE" "_NET_WM_WINDOW_TYPE_MENU"
+
 isInProperty :: String -> String -> Window -> SUN Bool
 isInProperty p v w = do
   va <- getAtom v
@@ -489,18 +493,20 @@ eventDispatch !(UnmapEvent {ev_window = w, ev_send_event = synthetic}) =
         else detectDocks
 
 -- | TODO: deal with splash/dialog etc (wait until float support added)
-eventDispatch !(MapRequestEvent {ev_window = win}) = react $ do
+eventDispatch !(MapRequestEvent {ev_window = win}) = do
     dis <- asks display
     fw <- focusedWin
     liftIO $ selectInput dis win clientMask
     allWins <- getAllWins
     isF <- isFullscreen win ; isDia <- isDialog win ; isS <- isSplash win
     isDk <- isDock win
-    unless (win `elem` allWins || isF || isDia || isS || isDk) $ do
+    unless (win `elem` allWins || isF || isDia || isS || isDk) $ react $ do
       when (isJust fw) $ (hidden . focusWS) =. (fromJust fw:)
       (tree . focusWS) =. replace (Just win)
     when (isDk || isDia || isS || isF) $ liftIO $ mapWindow dis win
-    when isDia $ liftIO $ setInputFocus dis win revertToParent 0
+    when isDia $ do
+        liftIO $ print "dialog detected"
+        liftIO $ setInputFocus dis win revertToParent 0
     when isDk $ detectDocks >> arrange >> refresh
 
 -- | TODO: check if detectDocks is actually needed here
@@ -519,7 +525,7 @@ eventDispatch evt@(ConfigureRequestEvent _ _ _ dis _ win x y w h bw a d vm) = re
                      (wa_override_redirect wa)
                  sendEvent dis win False 0 ev
     liftIO $ sync dis False
-    detectDocks >> arrange >> refresh
+    detectDocks
 
 eventDispatch !evt@(KeyEvent {ev_event_type = et}) = when (et == keyPress) $ do
     dis <- asks display
