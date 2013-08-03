@@ -1,8 +1,8 @@
-# SUNWM
+# sunwm
 
 sunwm is a manual tiling window manager for X11/Linux.
 
-## FAQ
+## faq
 
 #### Q: Why create another tiling window manager?
 While there are perhaps an overabundance of dynamic (automatic) tiling window managers, there are very few manual tiling window managers.
@@ -12,7 +12,7 @@ While there are perhaps an overabundance of dynamic (automatic) tiling window ma
 Please consider filing a [bug report](https://github.com/zmeadows/sunwm/issues), no matter how insignificant the issue may seem.
 
 
-## INSTALL
+## install
 
 Make sure you have the following installed:
 
@@ -28,22 +28,39 @@ $ cabal install</pre></code>
 
 Be aware that cabal will install the binary <code>sunwm</code> to <code>$HOME/.cabal/bin</code>, so consider appending this directory to your $PATH.
 
-## CONFIGURATION
+## configuration
 
 sunwm is configured entirely through the <code>Sunwm.hs</code> file. See the included default file for further details.
 
-## COMMANDS
+## commands
 
-<b>focusTo</b> <i>dir</i> <br />
->Switches focus towards <i>dir</i> within the visible tiled windows.
+<b>focusTo</b> <i>direction</i> <br />
+>Switches focus towards <i>direction</i> within the visible tiled windows.
+ex: focusTo R
 
 <b>splitV</b> <i>ratio</i> <br />
 >Splits the focused frame vertically, yielding two new frames where the new left/right frame sizes are dictated by <i>ratio</i>.
 
+<b>splitH</b> <i>ratio</i> <br />
+>Splits the focused frame horizontally, yielding two new frames where the new up/down frame sizes are dictated by <i>ratio</i>.
 
-## ACKNOWLEDGEMENTS
+<b>swapToDir</b> <i>direction</i> <br />
+>Swaps the contents of two adjacent frames.
 
-#### X11 Window Managers:
+<b>raiseHidden</b> <i>L/R</i> <br />
+>Cycles through the stack of hidden windows within the focused frame.
+
+<b>removeFrame</b> <br />
+>Removes the focused frame. If a window was contained within the frame, it is added to the hidden stack.
+
+<b>spawnTerminal</b> <br />
+>Launches a user-defined terminal.
+
+
+
+## acknowledgements
+
+#### X11 window managers
 
 * Ratpoison (http://ratpoison.nongnu.org/)
 * StumpWM (http://www.nongnu.org/stumpwm/)
