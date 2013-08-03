@@ -56,7 +56,35 @@ ex: focusTo R
 <b>spawnTerminal</b> <br />
 >Launches a user-defined terminal.
 
+<b>makeOnly</b> <br />
+>Remove all splits from the current workspace, leaving only the focused frame to occupy the entire screen.
 
+<b>killWindow</b> <br />
+>Exits the currently focused window. If there are windows in the hidden stack, the next in the queue will be focused. Otherwise, the frame becomes empty.
+
+<b>removeFrame</b> <br />
+>Removes the currently focused frame, granting the space it occupied back to the frame(s) it was split with.
+
+<b>equalize</b> <br />
+>Sets the split ratios of all frames to 0.5.
+
+<b>banish</b> <br />
+>Relocates the mouse pointer to the bottom right of the currently focused screen.
+
+<b>flipT</b> <br />
+>Rotates the workspace frame layout by 90 degrees.
+
+<b>shiftTo</b> <i>direction</i> <br />
+>Shifts the focused frame towards <i>direction</i>.
+
+<b>resizeFrame</b> <i>direction</i> <i>ratio</i> <br />
+>Resizes the frame layout by increase/decreasing the split ratio by <i>ratio</i> in the specified <i>direction</i>.
+
+<b>toggleWS</b> [alt + Tab]<br />
+>Switches back to the last used workspace.
+
+<b>toggleScr</b> <br />
+>Switches focus back to the last used screen.
 
 ## acknowledgements
 
