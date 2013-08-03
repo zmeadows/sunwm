@@ -2,15 +2,7 @@
 
 sunwm is a manual tiling window manager for X11/Linux.
 
-## FAQ
-
-#### Q: Why create another tiling window manager?
-While there are perhaps an overabundance of dynamic (automatic) tiling window managers, there are far fewer manual tiling window managers. The ones that do exist lack a few features I desired, such as support for floating windows, while simultaneously supporting a great many features that I personally don't find very useful.
-
-#### Q: I was using sunwm and X happened to my Y while I was Z'ing! What's wrong with this piece of junk?
-Please consider filing a [bug report](https://github.com/zmeadows/sunwm/issues), no matter how insignificant the issue may seem.
-
-## install
+# install
 
 Make sure you have the following installed:
 
@@ -93,7 +85,7 @@ ex: focusTo R
 <b>moveWinToWS</b> <i>number</i> <br />
 >Moves the focused window to the workspace specified by <i>number</i>. The window will be placed into the last frame that was focused on the new workspace.
 
-## acknowledgements
+## recommendations
 
 #### X11 window managers
 
@@ -102,3 +94,12 @@ ex: focusTo R
 * XMonad (http://xmonad.org/)
 * i3 (http://i3wm.org/)
 * dwm (http://dwm.suckless.org/)
+
+#### Utilities
+
+* xmobar (http://projects.haskell.org/xmobar/)
+* dmenu (http://tools.suckless.org/dmenu/)
+
+#### Misc
+
+* Haskell Programming Language (http://www.haskell.org/haskellwiki/Haskell)
