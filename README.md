@@ -2,15 +2,13 @@
 
 sunwm is a manual tiling window manager for X11/Linux.
 
-## faq
+## FAQ
 
 #### Q: Why create another tiling window manager?
-While there are perhaps an overabundance of dynamic (automatic) tiling window managers, there are very few manual tiling window managers.
+While there are perhaps an overabundance of dynamic (automatic) tiling window managers, there are far fewer manual tiling window managers. The ones that do exist lack a few features I desired, such as support for floating windows, while simultaneously supporting a great many features that I personally don't find very useful.
 
-
-#### Q: Something strange happened! What's wrong with this piece of junk?
+#### Q: I was using sunwm and X happened to my Y while I was Z'ing! What's wrong with this piece of junk?
 Please consider filing a [bug report](https://github.com/zmeadows/sunwm/issues), no matter how insignificant the issue may seem.
-
 
 ## install
 
@@ -20,7 +18,7 @@ Make sure you have the following installed:
 * cabal-install (http://hackage.haskell.org/trac/hackage/wiki/CabalInstall)
 * X11 development libraries (http://www.x.org/wiki/)
 
-The above can all be easily installed through the package manager of any common Linux distribution. If it is your first experience with cabal-install, run <code>cabal update</code> before continuing. Then
+The above can all be easily installed through the package manager of any common Linux distribution. If it is your first experience with cabal-install, run <code>cabal update</code> before continuing in order to download the [Hackage](http://hackage.haskell.org/packages/hackage.html) database. Then
 
 <pre><code>$ git clone https://github.com/zmeadows/sunwm.git
 $ cd sunwm
@@ -80,11 +78,20 @@ ex: focusTo R
 <b>resizeFrame</b> <i>direction</i> <i>ratio</i> <br />
 >Resizes the frame layout by increase/decreasing the split ratio by <i>ratio</i> in the specified <i>direction</i>.
 
-<b>toggleWS</b> [alt + Tab]<br />
+<b>toggleWS</b> [alt + tab]<br />
 >Switches back to the last used workspace.
 
-<b>toggleScr</b> <br />
+<b>toggleScr</b> [win + tab] <br />
 >Switches focus back to the last used screen.
+
+<b>quit</b> <br />
+>Exit sunwm.
+
+<b>changeWS</b> <i>number</i> <br />
+>Switches to the workspace specified by <i>number</i>.
+
+<b>moveWinToWS</b> <i>number</i> <br />
+>Moves the focused window to the workspace specified by <i>number</i>. The window will be placed into the last frame that was focused on the new workspace.
 
 ## acknowledgements
 
