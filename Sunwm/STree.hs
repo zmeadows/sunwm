@@ -88,11 +88,10 @@ data SUNState = SUNState
     { _screens      :: !(FocusMap Int SUNScreen)
     , _inPrefix     :: !Bool
     , _lastScr      :: !Int
-    , _focusHistory :: !FocusHistory
     } deriving (Show,Eq)
 
 $(mkLabels [''SplitType, ''SUNPath, ''SUNZipper, ''Workspace,
-           ''FocusHistory, ''Dock, ''SUNScreen, ''SUNState])
+           ''Dock, ''SUNScreen, ''SUNState])
 
 -- | A frame with no window in it.
 emptyFrame :: SUNTree
@@ -110,11 +109,8 @@ emptyScr :: Int -> Rectangle -> SUNScreen
 emptyScr !nws (Rectangle x y w h) = SUNScreen wss x y w h 1 [] Nothing
     where wss = fromList 1 $ zip [1..nws] $ replicate nws emptyWS
 
-initFocusHistory :: FocusHistory
-initFocusHistory = FocusHistory Nothing Nothing Nothing Nothing
-
 initState :: Int -> [Rectangle] -> SUNState
-initState !nw !recs = SUNState scrs False (if length recs > 1 then 2 else 1) initFocusHistory
+initState !nw !recs = SUNState scrs False (if length recs > 1 then 2 else 1)
   where scrs = fromList 1 $ zip [1..length recs] $ map (emptyScr nw) recs
 
 walkTrail :: SUNPath -> SUNZipper -> SUNZipper
