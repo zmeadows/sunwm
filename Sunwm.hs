@@ -20,8 +20,7 @@ myBarConf = BarConf {
     }
 
 workspaceNames:: [String]
-workspaceNames = map show ([1..9] :: [Int])
---workspaceNames = ["web","comm","code1","code2","code3","mus","misc1","misc2"]
+workspaceNames = map show ([1..9] :: [Integer])
 
 defaultConfig :: UserConf
 defaultConfig = UserConf {
@@ -31,8 +30,8 @@ defaultConfig = UserConf {
     _keyBinds      = defaultKeys,
     _topKeyBinds   = defaultTopKeys,
     _wsNames       = workspaceNames,
-    _prefixKey     = (0, xK_F13),
-    _terminal      = "urxvtc +sb",
+    _prefixKey     = (controlMask, xK_t),
+    _terminal      = "xterm",
     _initHook      = return (),
     _stackHook     = return ()
     }
@@ -43,19 +42,14 @@ defaultKeys = M.fromList
     , ((0, xK_h), focusTo L)
     , ((0, xK_j), focusTo D)
     , ((0, xK_k), focusTo U)
-    , ((0, xK_v), splitV 0.5 >> focusTo R)
-    , ((shiftMask, xK_v), splitV 0.65 >> focusTo R)
-    , ((mod1Mask,  xK_v), splitV 0.35 >> focusTo R >> swapToDir L)
-    , ((0, xK_n), splitH 0.5 >> focusTo D)
-    , ((shiftMask, xK_n), splitH 0.65 >> focusTo D)
-    , ((mod1Mask,  xK_n), splitH 0.35 >> focusTo D >> swapToDir U)
-    , ((0, xK_p),  dmenu "-*-tamsyn-medium-*-*-*-17-*-*-*-*-*-*-*"
+    , ((0, xK_v), splitV 0.5)
+    , ((0, xK_n), splitH 0.5)
+    , ((0, xK_p), dmenu "-*-tamsyn-medium-*-*-*-17-*-*-*-*-*-*-*"
                          "#222222" "#f8f8f8" "#dddd77" "#222222")
     , ((shiftMask, xK_h), swapToDir L)
     , ((shiftMask, xK_l), swapToDir R)
     , ((shiftMask, xK_k), swapToDir U)
     , ((shiftMask, xK_j), swapToDir D)
-    --, ((0, xK_f), toggleFullScreen)
     , ((0, xK_o), raiseHidden R)
     , ((0, xK_i), raiseHidden L)
     , ((0, xK_r), removeFrame)
@@ -63,7 +57,6 @@ defaultKeys = M.fromList
     , ((0, xK_e), makeOnly)
     , ((0, xK_q), killWindow)
     , ((0, xK_b), banish)
-    , ((shiftMask, xK_q), killWindow >> removeFrame)
     , ((0, xK_Escape), return ())
     , ((0, xK_equal), equalize)
     , ((0, xK_slash), flipT)
