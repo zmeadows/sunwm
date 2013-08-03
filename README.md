@@ -15,17 +15,17 @@ Make sure you have the following installed:
 * cabal-install (http://hackage.haskell.org/trac/hackage/wiki/CabalInstall)
 * X11 development libraries (http://www.x.org/wiki/)
 
-If it is your first experience with cabal-install, run <code>cabal update</code> before continuing. Then
+These can all be easily installed through the package manager of any common Linux distribution. If it is your first experience with cabal-install, run <code>cabal update</code> before continuing. Then
 
 <pre><code>$ git clone https://github.com/zmeadows/sunwm.git
 $ cd sunwm
 $ cabal install</pre></code>
 
-Be aware that cabal will install the binary 'sunwm' to $HOME/.cabal/bin, so consider appending this directory to your $PATH.
+Be aware that cabal will install the binary <code>sunwm</code> to <code>$HOME/.cabal/bin</code>, so consider appending this directory to your $PATH.
 
 ## configuration
 
-sunwm is configured entirely through the file <code>Sunwm.hs</code>. See the default file for further details.
+sunwm is configured entirely through the <code>Sunwm.hs</code> file. See the included default file for further details.
 
 ## keybindings
 
