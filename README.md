@@ -7,6 +7,11 @@ sunwm is a manual tiling window manager for X11/Linux.
 ### Q: Why create another tiling window manager?
 While there are perhaps an overabundance of dynamic (automatic) tiling window managers, there are very few manual tiling window managers.
 
+
+### Q: Something weird happened!
+Please consider filing a [bug report](https://github.com/zmeadows/sunwm/issues), no matter how insignificant the issue may seem.
+
+
 ## install
 
 Make sure you have the following installed:
