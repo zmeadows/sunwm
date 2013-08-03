@@ -14,13 +14,11 @@ X11 development libraries (http://www.x.org/wiki/)
 
 Then
 
-<code>
+<pre><code>
 $ git clone https://github.com/zmeadows/sunwm.git
-
 $ cd sunwm
-
 $ cabal install
-</code>
+</pre></code>
 
 ## keybindings
 
