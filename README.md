@@ -6,16 +6,17 @@ sunwm is a manual tiling window manager for X11/Linux.
 
 ## install
 
-Make sure you have the following install:
+Make sure you have the following installed:
 
-GHC (http://www.haskell.org/ghc/)
-cabal-install (http://hackage.haskell.org/trac/hackage/wiki/CabalInstall)
+GHC (http://www.haskell.org/ghc/) <br />
+cabal-install (http://hackage.haskell.org/trac/hackage/wiki/CabalInstall) <br />
 X11 development libraries (http://www.x.org/wiki/)
 
 Then
 
 <pre><code>$ git clone https://github.com/zmeadows/sunwm.git
 $ cd sunwm
+$ cabal update
 $ cabal install</pre></code>
 
 ## keybindings
