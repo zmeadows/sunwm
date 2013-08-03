@@ -4,11 +4,11 @@ sunwm is a manual tiling window manager for X11/Linux.
 
 ## FAQ
 
-### Q: Why create another tiling window manager?
+#### Q: Why create another tiling window manager?
 While there are perhaps an overabundance of dynamic (automatic) tiling window managers, there are very few manual tiling window managers.
 
 
-### Q: Something strange happened! What's wrong with this piece of junk?
+#### Q: Something strange happened! What's wrong with this piece of junk?
 Please consider filing a [bug report](https://github.com/zmeadows/sunwm/issues), no matter how insignificant the issue may seem.
 
 
@@ -34,7 +34,7 @@ sunwm is configured entirely through the <code>Sunwm.hs</code> file. See the inc
 
 ## COMMANDS
 
-* focusTo <i>dir</i> - Switches focus towards <i>dir</i> within the visible tiled windows.
+<b>focusTo</b> <i>dir</i> - Switches focus towards <i>dir</i> within the visible tiled windows.
 
 ## ACKNOWLEDGEMENTS
 
