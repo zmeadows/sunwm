@@ -34,11 +34,11 @@ sunwm is configured entirely through the <code>Sunwm.hs</code> file. See the inc
 
 ## COMMANDS
 
-##### <b>focusTo</b> <i>dir</i> <br />
-Switches focus towards <i>dir</i> within the visible tiled windows.
+<b>focusTo</b> <i>dir</i> <br />
+>Switches focus towards <i>dir</i> within the visible tiled windows.
 
 <b>splitV</b> <i>ratio</i> <br />
-Splits the focused frame vertically, yielding two new frames where the new left/right frame sizes are dictated by <i>ratio</i>.
+>Splits the focused frame vertically, yielding two new frames where the new left/right frame sizes are dictated by <i>ratio</i>.
 
 
 ## ACKNOWLEDGEMENTS
