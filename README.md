@@ -4,13 +4,15 @@ sunwm is a manual tiling window manager for X11/Linux.
 
 ## FAQ
 
+### Q: Why
+
 ## install
 
 Make sure you have the following installed:
 
 GHC (http://www.haskell.org/ghc/) <br />
 cabal-install (http://hackage.haskell.org/trac/hackage/wiki/CabalInstall) <br />
-X11 development libraries (http://www.x.org/wiki/)
+X11 development libraries (http://www.x.org/wiki/) <br />
 
 Then
 
@@ -25,8 +27,8 @@ $ cabal install</pre></code>
 
 X11 Window Managers:
 
-    Ratpoison (http://ratpoison.nongnu.org/)
-    StumpWM (http://www.nongnu.org/stumpwm/)
-    XMonad (http://xmonad.org/)
-    i3 (http://i3wm.org/)
-    dwm (http://dwm.suckless.org/)
+Ratpoison (http://ratpoison.nongnu.org/)
+StumpWM (http://www.nongnu.org/stumpwm/)
+XMonad (http://xmonad.org/)
+i3 (http://i3wm.org/)
+dwm (http://dwm.suckless.org/)
