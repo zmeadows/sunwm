@@ -25,10 +25,12 @@ $ cabal install</pre></code>
 
 ## acknowledgements
 
-X11 Window Managers:
+#### X11 Window Managers:
 
-Ratpoison (http://ratpoison.nongnu.org/)
-StumpWM (http://www.nongnu.org/stumpwm/)
-XMonad (http://xmonad.org/)
-i3 (http://i3wm.org/)
-dwm (http://dwm.suckless.org/)
+<ol>
+<li>Ratpoison (http://ratpoison.nongnu.org/)</li>
+<li>StumpWM (http://www.nongnu.org/stumpwm/)</li>
+<li>XMonad (http://xmonad.org/)</li>
+<li>i3 (http://i3wm.org/)</li>
+<li>dwm (http://dwm.suckless.org/)</li>
+</ol>
