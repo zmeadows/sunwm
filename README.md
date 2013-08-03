@@ -24,7 +24,7 @@ sunwm is configured entirely through the <code>Sunwm.hs</code> file. See the inc
 
 ## commands
 
-<b>focusTo</b> <i>direction</i> [Ctl t + (h,j,k,l)] <br />
+<b>focusTo</b> <i>direction</i> <code>[Ctl t + (h,j,k,l)]</code> <br />
 >Switches focus towards <i>direction</i> within the visible tiled windows.
 ex: focusTo R
 
