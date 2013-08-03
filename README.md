@@ -28,7 +28,7 @@ sunwm is configured entirely through the <code>Sunwm.hs</code> file. See the inc
 >Switches focus towards <i>direction</i> within the visible tiled windows.
 ex: focusTo R
 
-<b>splitV</b> <i>ratio</i> [Ctl t + v] <br />
+<b>splitV</b> <i>ratio</i> <code>[Ctl t + v]</code> <br />
 >Splits the focused frame vertically, yielding two new frames where the new left/right frame sizes are dictated by <i>ratio</i>.
 
 <b>splitH</b> <i>ratio</i> <code>[Ctl t + h]</code> <br />
