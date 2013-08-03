@@ -1,18 +1,18 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving, BangPatterns, TemplateHaskell, TypeOperators #-}
 
------------------------------------------------------------------------------
----- |
----- Module      :  Sunwm.Core
----- Copyright   :  (c) Zac Meadows 2011
----- License     :  WTFPL 2.0 (see LICENSE)
-----
----- Maintainer  :  zmeadows@gmail.com
----- Stability   :  unstable
----- Portability :  not portable
-----
----- Interaction with XLib and STree.hs
-----
------------------------------------------------------------------------------
+---------------------------------------------------------------------------
+-- |
+-- Module      :  Sunwm.Core
+-- Copyright   :  (c) Zac Meadows 2011
+-- License     :  MIT (see LICENSE)
+--
+-- Maintainer  :  zmeadows@gmail.com
+-- Stability   :  unstable
+-- Portability :  not portable
+--
+-- Interaction between XLib and the structures in STree.hs.
+--
+---------------------------------------------------------------------------
 
 module Sunwm.Core where
 

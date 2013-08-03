@@ -1,32 +1,17 @@
-{- Copyright 2011-2012 Zac Meadows
+{-# LANGUAGE BangPatterns #-}
 
-  This file is part of sunWM.
-
-  sunWM is free software: you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation, either version 3 of the License, or
-  (at your option) any later version.
-
-  sunWM is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
-
-  You should have received a copy of the GNU General Public License
-  along with sunWM.  If not, see <http://www.gnu.org/licenses/>.
-
-
--- --------------------------------------------------------------------------
+-----------------------------------------------------------------------------
+-- |
 -- Module      :  SunWM.Util
--- Copyright   :  (c) Zac Meadows 2012
--- License     :  GPL3 (see LICENSE)
+-- Copyright   :  (c) Zac Meadows 2011
+-- License     :  MIT (see LICENSE)
 --
 -- Maintainer  :  zmeadows@gmail.com
 --
 -- Utility functions required for various extraneous purposes.
--- --------------------------------------------------------------------------
--}
-{-# LANGUAGE BangPatterns #-}
+--
+-----------------------------------------------------------------------------
+
 module Sunwm.Util where
 
 import Control.Monad.IO.Class

@@ -4,13 +4,13 @@
 ---- |
 ---- Module      :  STree
 ---- Copyright   :  (c) Zac Meadows 2011
----- License     :  WTFPL 2.0 (see LICENSE)
+---- License     :  MIT (see LICENSE)
 ----
 ---- Maintainer  :  zmeadows@gmail.com
 ---- Stability   :  unstable
 ---- Portability :  not portable
 ----
----- The purely functional data structures behind SunWM.
+---- The purely functional data structures behind sunwm
 ----
 -----------------------------------------------------------------------------
 

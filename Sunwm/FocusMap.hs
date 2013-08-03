@@ -1,10 +1,21 @@
 module Sunwm.FocusMap where
 
--- This is essentially just a wrapper around Data.Map
--- that maintains a 'focus'.  All this does is reduce
--- boiler plate code and limit the number of variables
--- needed to keep track of which screen/workspace is focused
+---------------------------------------------------------------------------
+-- |
+-- Module      :  Sunwm.FocusMap
+-- Copyright   :  (c) Zac Meadows 2011
+-- License     :  MIT (see LICENSE)
+--
+-- Maintainer  :  zmeadows@gmail.com
+-- Stability   :  unstable
+-- Portability :  not portable
+--
+-- This is essentially just a wrapper around Data.Map that maintains a
+-- 'focus'. This intended to reduce boiler plate code and limit the number
+-- of variables needed to keep track of which screen/workspace is focused
 -- in sunwm.
+--
+---------------------------------------------------------------------------
 
 import qualified Data.Map.Strict as M
 import Control.Arrow (second)
