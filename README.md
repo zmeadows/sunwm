@@ -34,7 +34,8 @@ sunwm is configured entirely through the <code>Sunwm.hs</code> file. See the inc
 
 ## COMMANDS
 
-<b>focusTo</b> <i>dir</i> :: Switches focus towards <i>dir</i> within the visible tiled windows.
+<b>focusTo</b> <i>dir</i>
+    Switches focus towards <i>dir</i> within the visible tiled windows.
 
 ## ACKNOWLEDGEMENTS
 
