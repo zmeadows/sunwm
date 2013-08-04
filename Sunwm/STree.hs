@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, TemplateHaskell, TypeOperators #-}
+{-# LANGUAGE BangPatterns, ExistentialQuantification, TemplateHaskell, TypeOperators #-}
 
 -----------------------------------------------------------------------------
 ---- |
@@ -23,7 +23,9 @@ import Data.Label hiding (fw)
 import Data.List (minimumBy, delete, find, findIndex)
 import Data.Maybe
 import Data.Ord (comparing)
+import Data.Typeable
 import System.IO (Handle)
+import qualified Data.Map.Strict as M
 
 import Foreign.C.Types (CLong)
 
@@ -57,20 +59,13 @@ data Workspace = Workspace
     , _inFullScreen :: !Bool
     } deriving (Show,Eq)
 
-data FocusHistory = FocusHistory
-    { _lastLeft  :: Maybe Window
-    , _lastRight :: Maybe Window
-    , _lastUp    :: Maybe Window
-    , _lastDown  :: Maybe Window
-    } deriving (Show, Eq)
-
 data Dock = Dock
-    { _barX :: Position
-    , _barY :: Position
-    , _barW :: Dimension
-    , _barH :: Dimension
-    , _barPosition :: Direction
-    , _barWin :: Window
+    { _barX        :: !Position
+    , _barY        :: !Position
+    , _barW        :: !Dimension
+    , _barH        :: !Dimension
+    , _barPosition :: !Direction
+    , _barWin      :: !Window
     } deriving (Show, Eq)
 
 data SUNScreen = SUNScreen
@@ -84,11 +79,14 @@ data SUNScreen = SUNScreen
     , _barHandle    :: Maybe Handle
     } deriving (Show,Eq)
 
+data PluginState = forall a. (Typeable a) => PluginState a
+
 data SUNState = SUNState
     { _screens      :: !(FocusMap Int SUNScreen)
     , _inPrefix     :: !Bool
     , _lastScr      :: !Int
-    } deriving (Show,Eq)
+    , _pluginState  :: !(M.Map String PluginState)
+    }
 
 $(mkLabels [''SplitType, ''SUNPath, ''SUNZipper, ''Workspace,
            ''Dock, ''SUNScreen, ''SUNState])
@@ -110,7 +108,7 @@ emptyScr !nws (Rectangle x y w h) = SUNScreen wss x y w h 1 [] Nothing
     where wss = fromList 1 $ zip [1..nws] $ replicate nws emptyWS
 
 initState :: Int -> [Rectangle] -> SUNState
-initState !nw !recs = SUNState scrs False (if length recs > 1 then 2 else 1)
+initState !nw !recs = SUNState scrs False (if length recs > 1 then 2 else 1) M.empty
   where scrs = fromList 1 $ zip [1..length recs] $ map (emptyScr nw) recs
 
 walkTrail :: SUNPath -> SUNZipper -> SUNZipper
