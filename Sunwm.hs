@@ -1,23 +1,12 @@
 import Sunwm.Core
 import Sunwm.STree
-import Sunwm.Util
 
 import Graphics.X11
 import Data.Bits hiding (shift)
-import qualified Data.Map as M
-
-import Sunwm.Extra.Bars.XMobar
+import qualified Data.Map.Strict as M
 
 main :: IO ()
-main = sunwm (xmobar myBarConf defaultConfig) >>= print
-
-myBarConf :: BarConf
-myBarConf = BarConf {
-    _focusColor       = ("#222222", "#dddd77"),
-    _hiddenColor      = ("#f8f8f8", "#222222"),
-    _hiddenEmptyColor = ("#8f8f8f", "#222222"),
-    _titleColor       = ("#dddd77", "#222222")
-    }
+main = sunwm defaultConfig []
 
 workspaceNames:: [String]
 workspaceNames = map show ([1..9] :: [Integer])
@@ -44,8 +33,6 @@ defaultKeys = M.fromList
     , ((0, xK_k), focusTo U)
     , ((0, xK_v), splitV 0.5)
     , ((0, xK_n), splitH 0.5)
-    , ((0, xK_p), dmenu "-*-tamsyn-medium-*-*-*-17-*-*-*-*-*-*-*"
-                         "#222222" "#f8f8f8" "#dddd77" "#222222")
     , ((shiftMask, xK_h), swapToDir L)
     , ((shiftMask, xK_l), swapToDir R)
     , ((shiftMask, xK_k), swapToDir U)
