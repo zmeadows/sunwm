@@ -417,7 +417,7 @@ shiftTo dir = react $ do
     when (pscr /= nscr) $ lastScr =: pscr
 
 spawnTerminal :: SUN ()
-spawnTerminal = asks (terminal . userConf) >>= void . liftIO . system
+spawnTerminal = asks (terminal . userConf) >>= void . liftIO . runCommand
 
 moveWinToWS :: Int -> SUN ()
 moveWinToWS wsn = react $ (workspaces . focusScr) =. moveToWS wsn
@@ -514,9 +514,7 @@ eventDispatch !(MapRequestEvent {ev_window = win}) = do
       when (isJust fw) $ (hidden . focusWS) =. (fromJust fw:)
       (tree . focusWS) =. replace (Just win)
     when (isDk || isDia || isS || isF) $ liftIO $ mapWindow dis win
-    when isDia $ do
-        liftIO $ print "dialog detected"
-        liftIO $ setInputFocus dis win revertToParent 0
+    when isDia $ liftIO $ setInputFocus dis win revertToParent 0
     when isDk $ detectDocks >> arrange >> refresh
 
 -- | TODO: check if detectDocks is actually needed here
