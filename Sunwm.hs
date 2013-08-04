@@ -14,7 +14,7 @@ workspaceNames = map show ([1..9] :: [Integer])
 defaultConfig :: UserConf
 defaultConfig = UserConf {
     _normalBorder  = "rgb:4f/4f/4f",
-    _focusedBorder = "rgb:dd/dd/77",
+    _focusedBorder = "rgb:ff/00/00",
     _borderWidth   = 1,
     _keyBinds      = defaultKeys,
     _topKeyBinds   = defaultTopKeys,
