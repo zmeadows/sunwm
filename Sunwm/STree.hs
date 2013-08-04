@@ -10,7 +10,7 @@
 ---- Stability   :  unstable
 ---- Portability :  not portable
 ----
----- The purely functional data structures behind sunwm
+---- The purely functional data structures behind sunwm.
 ----
 -----------------------------------------------------------------------------
 
@@ -24,7 +24,7 @@ import Data.List (minimumBy, delete, find, findIndex)
 import Data.Maybe
 import Data.Ord (comparing)
 import Data.Typeable
-import System.IO (Handle)
+import Data.Dynamic
 import qualified Data.Map.Strict as M
 
 import Foreign.C.Types (CLong)
@@ -76,16 +76,13 @@ data SUNScreen = SUNScreen
     , _height       :: !Dimension
     , _lastWS       :: !Int
     , _docks        :: [Dock]
-    , _barHandle    :: Maybe Handle
     } deriving (Show,Eq)
-
-data PluginState = forall a. (Typeable a) => PluginState a
 
 data SUNState = SUNState
     { _screens      :: !(FocusMap Int SUNScreen)
     , _inPrefix     :: !Bool
     , _lastScr      :: !Int
-    , _pluginState  :: !(M.Map String PluginState)
+    , _pluginState  :: !(M.Map TypeRep Dynamic)
     }
 
 $(mkLabels [''SplitType, ''SUNPath, ''SUNZipper, ''Workspace,
@@ -104,7 +101,7 @@ emptyWS :: Workspace
 emptyWS = Workspace emptyZipper [] False
 
 emptyScr :: Int -> Rectangle -> SUNScreen
-emptyScr !nws (Rectangle x y w h) = SUNScreen wss x y w h 1 [] Nothing
+emptyScr !nws (Rectangle x y w h) = SUNScreen wss x y w h 1 []
     where wss = fromList 1 $ zip [1..nws] $ replicate nws emptyWS
 
 initState :: Int -> [Rectangle] -> SUNState
