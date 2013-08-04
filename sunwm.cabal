@@ -1,5 +1,5 @@
 name: sunWM
-version: 0.0.3
+version: 0.0.4
 synopsis: X11 tiling window-manager
 category: System
 license: MIT
@@ -13,5 +13,5 @@ build-type: Simple
 executable sunwm
   main-is: Sunwm.hs
   build-depends: base, X11, fclabels, mtl, containers, extensible-exceptions, unix, transformers, process
-  ghc-options: -funbox-strict-fields -O2 -fspec-constr-count=56
+  ghc-options: -funbox-strict-fields -O2 -fspec-constr-count=56 -Wall
   hs-source-dirs: Sunwm .
