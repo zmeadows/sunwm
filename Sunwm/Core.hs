@@ -17,7 +17,6 @@
 module Sunwm.Core where
 
 import Sunwm.STree
-import Sunwm.Util
 import Sunwm.FocusMap
 
 import Prelude hiding ((.), id)
@@ -37,6 +36,7 @@ import qualified Data.Label as L
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import Data.Bits hiding (shift)
+import Data.Dynamic
 
 import Graphics.X11.Xlib hiding (refreshKeyboardMapping)
 import Graphics.X11.Xlib.Extras
@@ -45,6 +45,7 @@ import Graphics.X11.Xinerama
 import Foreign.C.Types (CLong)
 
 import System.IO
+import System.Process
 import System.Exit
 
 data UserConf = UserConf
@@ -62,6 +63,13 @@ data UserConf = UserConf
 
 -- data MouseFocusStyle = None | Click | Follow
 
+data Plugin = Plugin
+    { _pluginDataType  :: TypeRep
+    , _pluginData      :: Dynamic
+    , _initHookPlugin  :: SUN ()
+    , _stackHookPlugin :: SUN ()
+    }
+
 data SUNConf = SUNConf
     { _display            :: !Display
     , _root               :: !Window
@@ -74,7 +82,7 @@ data SUNConf = SUNConf
 newtype SUN a = SUN (ErrorT String (ReaderT SUNConf (StateT SUNState IO)) a)
     deriving (Monad, MonadPlus, MonadIO, MonadState SUNState, MonadReader SUNConf, Functor)
 
-$(L.mkLabels [''SUNConf, ''UserConf])
+$(L.mkLabels [''SUNConf, ''UserConf, ''Plugin])
 
 -- | ---------------------- | --
 -- | SETUP/EXTRANEOUS STUFF | --
@@ -100,10 +108,10 @@ getFocusScrPos = (L.get xPos &&& L.get yPos) <$> gets focusScr
 
 -- | Does basic Xlib setup and generates a SUNConf object based on
 -- user-specified settings in a UserConf.
-setup :: UserConf -> IO SUNConf
+setup :: UserConf -> IO (SUNConf,SUNState)
 setup !uc = do
   dis <- openDisplay ""
-  installSignalHandlers
+  --installSignalHandlers
   let defRt = defaultRootWindow dis
   fc <- getColor dis $ L.get focusedBorder uc
   nc <- getColor dis $ L.get normalBorder uc
@@ -121,7 +129,10 @@ setup !uc = do
   xSetErrorHandler
   hSetBuffering stdout NoBuffering
   sync dis False
-  return $ SUNConf dis defRt uc nc fc nmlck
+  scrRecs <- getScreenInfo dis
+  let sc = generateScrBinds (length scrRecs) $ SUNConf dis defRt uc nc fc nmlck
+      st = initState (length $ L.get wsNames uc) scrRecs
+  return (sc,st)
 
 getColor :: Display -> String -> IO Pixel
 getColor dis !str = let cMap = defaultColormap dis (defaultScreen dis) in
@@ -406,7 +417,7 @@ shiftTo dir = react $ do
     when (pscr /= nscr) $ lastScr =: pscr
 
 spawnTerminal :: SUN ()
-spawnTerminal = asks (terminal . userConf) >>= spawn
+spawnTerminal = asks (terminal . userConf) >>= void . liftIO . system
 
 moveWinToWS :: Int -> SUN ()
 moveWinToWS wsn = react $ (workspaces . focusScr) =. moveToWS wsn
@@ -576,22 +587,39 @@ eventDispatch !evt
 clientMask :: EventMask
 clientMask = propertyChangeMask .|. enterWindowMask
 
-generateScrBinds :: Int -> SUNConf -> IO SUNConf
-generateScrBinds 1 uc = return uc
-generateScrBinds ns uc = do
+generateScrBinds :: Int -> SUNConf -> SUNConf
+generateScrBinds 1 sc = sc
+generateScrBinds ns sc = do
     let screenMoveBinds = map (\(k,n) -> ((mod4Mask, k), changeScr n))
                      $ zip [xK_1..] [1..ns]
         screenSwapBinds = map (\(k,n) -> ((mod4Mask .|. controlMask, k), swapWStoScr n))
                      $ zip [xK_1..] [1..ns]
         screenSendBinds = map (\(k,n) -> ((mod4Mask .|. shiftMask, k), moveWinToScr n))
                      $ zip [xK_1..] [1..ns]
-    return $ L.modify (topKeyBinds . userConf)
-        (\tkb -> M.union tkb $ M.fromList $ screenMoveBinds ++ screenSendBinds ++ screenSwapBinds) uc
+    L.modify (topKeyBinds . userConf)
+        (\tkb -> M.union tkb $ M.fromList
+             $ screenMoveBinds ++ screenSendBinds ++ screenSwapBinds) sc
 
-sunwm :: UserConf -> IO (Either String ())
-sunwm !uc = do
-    sc <- setup uc
-    scrRecs <- getScreenInfo $ L.get display sc
-    let st = initState (length $ L.get wsNames uc) scrRecs
-    sc' <- generateScrBinds (length scrRecs) sc
-    runSUN (grabPrefixTops >> L.get (initHook . userConf) sc' >> detectDocks >> eventLoop) st sc'
+addPluginHooks :: [Plugin] -> UserConf -> UserConf
+addPluginHooks [] !uc = uc
+addPluginHooks !ps !uc =
+    let psInitHooks = foldl1 (>>) $ map (L.get initHookPlugin) ps
+        psStackHooks = foldl1 (>>) $ map (L.get stackHookPlugin) ps
+    in L.modify initHook (>> psInitHooks) $ L.modify stackHook (>> psStackHooks) uc
+
+initializePluginState :: [Plugin] -> M.Map TypeRep Dynamic
+initializePluginState !ps =
+    let pd = map (L.get pluginData) ps
+        pt = map (L.get pluginDataType) ps
+    in M.fromList (zip pt pd)
+
+runInitHooks :: SUN ()
+runInitHooks = join $ asks (initHook . userConf)
+
+-- | TODO: switch grabPrefixTops to IO monad instead of SUN
+sunwm :: UserConf -> [Plugin] -> IO ()
+sunwm !uc !ps = do
+    (sc,st) <- setup uc
+    let sc' = L.modify userConf (addPluginHooks ps) sc
+        st' = L.set pluginState (initializePluginState ps) st
+    runSUN (grabPrefixTops >> runInitHooks >> detectDocks >> eventLoop) st' sc' >>= print
