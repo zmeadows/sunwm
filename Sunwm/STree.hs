@@ -25,9 +25,10 @@ import Data.Maybe
 import Data.Ord (comparing)
 import Data.Typeable
 import Data.Dynamic
+import Data.Map (Map)
 import qualified Data.Map.Strict as M
 
-import Foreign.C.Types (CLong)
+import Foreign.C.Types (CLong, CInt)
 
 import Control.Applicative((<$>))
 import Control.Category ((.))
@@ -57,6 +58,7 @@ data Workspace = Workspace
     { _tree         :: !(SUNZipper)
     , _hidden       :: ![Window]
     , _inFullScreen :: !Bool
+    , _floats       :: !(Map Window Rectangle)
     } deriving (Show,Eq)
 
 data Dock = Dock
@@ -66,7 +68,7 @@ data Dock = Dock
     , _barH        :: !Dimension
     , _barPosition :: !Direction
     , _barWin      :: !Window
-    } deriving (Show, Eq)
+    } deriving (Show,Eq)
 
 data SUNScreen = SUNScreen
     { _workspaces   :: !(FocusMap Int Workspace)
@@ -78,12 +80,15 @@ data SUNScreen = SUNScreen
     , _docks        :: [Dock]
     } deriving (Show,Eq)
 
+data MouseState = Move CInt CInt | Resize CInt CInt | Idle deriving (Show,Eq)
+
 data SUNState = SUNState
     { _screens      :: !(FocusMap Int SUNScreen)
     , _inPrefix     :: !Bool
     , _lastScr      :: !Int
-    , _pluginState  :: !(M.Map TypeRep Dynamic)
-    }
+    , _mouseState   :: !MouseState
+    , _pluginState  :: !(Map TypeRep Dynamic)
+    } deriving (Show)
 
 $(mkLabels [''SplitType, ''SUNPath, ''SUNZipper, ''Workspace,
            ''Dock, ''SUNScreen, ''SUNState])
@@ -98,14 +103,14 @@ emptyZipper = SZ emptyFrame []
 
 -- | An empty default workspace
 emptyWS :: Workspace
-emptyWS = Workspace emptyZipper [] False
+emptyWS = Workspace emptyZipper [] False M.empty
 
 emptyScr :: Int -> Rectangle -> SUNScreen
 emptyScr !nws (Rectangle x y w h) = SUNScreen wss x y w h 1 []
     where wss = fromList 1 $ zip [1..nws] $ replicate nws emptyWS
 
 initState :: Int -> [Rectangle] -> SUNState
-initState !nw !recs = SUNState scrs False (if length recs > 1 then 2 else 1) M.empty
+initState !nw !recs = SUNState scrs False (if length recs > 1 then 2 else 1) Idle M.empty
   where scrs = fromList 1 $ zip [1..length recs] $ map (emptyScr nw) recs
 
 walkTrail :: SUNPath -> SUNZipper -> SUNZipper
