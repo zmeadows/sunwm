@@ -4,7 +4,7 @@ import Sunwm.STree
 import Sunwm.Core
 
 import Data.Dynamic
-import qualified Data.Map.Strict as M
+import qualified Data.Map as M
 import Data.Label.PureM ((=.),gets)
 import Control.Applicative ((<$>))
 import Data.Maybe
