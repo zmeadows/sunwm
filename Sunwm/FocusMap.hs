@@ -17,7 +17,7 @@ module Sunwm.FocusMap where
 --
 ---------------------------------------------------------------------------
 
-import qualified Data.Map.Strict as M
+import qualified Data.Map as M
 import Control.Arrow (second)
 import Data.Maybe (fromJust, fromMaybe)
 
