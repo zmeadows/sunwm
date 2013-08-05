@@ -33,8 +33,8 @@ import Data.List ((\\), find, nub)
 import Data.Label ((:->))
 import Data.Label.PureM ((=:),(=.),gets,asks)
 import qualified Data.Label as L
-import Data.Map.Strict (Map)
-import qualified Data.Map.Strict as M
+import Data.Map (Map)
+import qualified Data.Map as M
 import Data.Bits hiding (shift)
 import Data.Dynamic
 
@@ -121,7 +121,7 @@ setup !uc = do
           | (m, kcs) <- ms, kc <- kcs, kc /= 0]
 
   selectInput dis defRt $ substructureRedirectMask .|. substructureNotifyMask .|.
-                          structureNotifyMask .|. buttonPressMask .|. buttonReleaseMask
+                          structureNotifyMask
 
   ungrabButton dis anyButton anyModifier defRt
   ungrabKey dis anyKey anyModifier defRt
@@ -528,7 +528,8 @@ eventDispatch evt@(ConfigureRequestEvent _ _ _ dis _ win x y w h bw a d vm) = re
     ws  <- flattenToWins <$> gets (tree . focusWS)
     wa <- liftIO $ getWindowAttributes dis win
     liftIO $ if win `notElem` ws
-        then configureWindow dis win vm $ WindowChanges x y w h bw a d
+        then do
+            configureWindow dis win vm $ WindowChanges x y w h bw a d
         else allocaXEvent $ \ev -> do
                  setEventType ev configureNotify
                  setConfigureEvent ev win win
@@ -541,35 +542,39 @@ eventDispatch evt@(ConfigureRequestEvent _ _ _ dis _ win x y w h bw a d vm) = re
 
 eventDispatch !evt@(ButtonEvent {ev_event_type = et, ev_subwindow = sw}) = do
     dis <- asks display
+    r <- asks root
+
     when (et == buttonPress && sw /= none) $ do
+        focusWS =. deleteWinWS sw
         (x,y,w,h) <- getWinPosDim sw
         (floats . focusWS) =. M.insert sw (Rectangle x y w h)
-        focusWS =. deleteWinWS sw
-        when (ev_button evt == 1) $ do
-            mouseState =: Move (ev_x evt) (ev_y evt)
-            liftIO $ grabPointer dis sw False (pointerMotionMask .|. buttonReleaseMask) grabModeAsync grabModeAsync none none currentTime
-            liftIO $ print "moving"
-        when (ev_button evt == 3) $ do
-            mouseState =: Resize (ev_x evt) (ev_y evt)
-            liftIO $ grabPointer dis sw False (pointerMotionMask .|. buttonReleaseMask) grabModeAsync grabModeAsync none none currentTime
-            liftIO $ print "resizing"
+
+        (_, _, _, ox, oy, _, _, _) <- liftIO $ queryPointer dis sw
+
+        liftIO $ grabPointer dis r False (pointerMotionMask .|. buttonReleaseMask)
+                    grabModeAsync grabModeAsync none none currentTime
+
+        when (ev_button evt == 1) $ mouseState =: Move sw (fi x,ox) (fi y,oy)
+        when (ev_button evt == 3) $ mouseState =: Resize sw (fi x,ox) (fi y,oy)
+
     when (et == buttonRelease) $ do
         mouseState =: Idle
-        liftIO $ print "released button"
         liftIO $ ungrabPointer dis currentTime
 
-eventDispatch !evt@(MotionEvent {ev_window = w, ev_x = x, ev_y = y}) = do
-    dis <- asks display
-    ms <- gets mouseState
-    case ms of
-        (Move ox oy) -> do
-            liftIO $ print $ "MOVE " ++ show w
-            liftIO $ print (x + ox, y + oy)
-            liftIO $ moveWindow dis w (fi x + fi ox) (fi y + fi oy)
-        (Resize ox oy) -> do
-            liftIO $ print $ "RESIZE " ++ show w
-            liftIO $ print (x - ox,y - oy)
-        _ -> return ()
+eventDispatch !evt@(MotionEvent {ev_x = ex, ev_y = ey}) = do
+      dis <- asks display
+
+      ms <- gets mouseState
+      case ms of
+          (Move w (wx, ox) (wy, oy)) -> do
+              let nx = fip $ wx + (ex - ox)
+                  ny = fip $ wy + (ey - oy)
+              liftIO $ moveWindow dis w nx ny
+
+          (Resize _ _ _) -> return ()
+
+          _ -> return ()
+      clearEvents pointerMotionMask
 
 eventDispatch !evt@(KeyEvent {ev_event_type = et}) = when (et == keyPress) $ do
     dis <- asks display
@@ -649,6 +654,14 @@ initializePluginState !ps =
 
 runInitHooks :: SUN ()
 runInitHooks = join $ asks (initHook . userConf)
+
+-- | clearEvents.  Remove all events of a given type from the event queue.
+clearEvents :: EventMask -> SUN ()
+clearEvents mask = asks display >>= \d -> liftIO $ do
+    sync d False
+    allocaXEvent $ \p -> fix $ \again -> do
+        more <- checkMaskEvent d mask p
+        when more again -- beautiful
 
 -- | TODO: switch grabPrefixTops to IO monad instead of SUN
 sunwm :: UserConf -> [Plugin] -> IO ()
