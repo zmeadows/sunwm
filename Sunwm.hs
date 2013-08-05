@@ -3,7 +3,7 @@ import Sunwm.STree
 
 import Graphics.X11
 import Data.Bits hiding (shift)
-import qualified Data.Map.Strict as M
+import qualified Data.Map as M
 
 main :: IO ()
 main = sunwm defaultConfig []
@@ -19,7 +19,7 @@ defaultConfig = UserConf {
     _keyBinds      = defaultKeys,
     _topKeyBinds   = defaultTopKeys,
     _wsNames       = workspaceNames,
-    _prefixKey     = (controlMask, xK_t),
+    _prefixKey     = (0, xK_F13),
     _terminal      = "xterm",
     _initHook      = return (),
     _stackHook     = return ()
