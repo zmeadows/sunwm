@@ -216,16 +216,24 @@ updateFocusN scrn = do
 
     ioMap_ unFocus ws
 
-    case fw of
-      Just w -> do
-        liftIO $ if null tl
-          then setWindowBorderWidth dis w 0
-          else when (scrn == fscn) $ setWindowBorderWidth dis w bw >> setWindowBorder dis w fc
-        when (scrn == fscn) $ liftIO $ setInputFocus dis w revertToParent 0
-      Nothing -> do
-        when (scrn == fscn) $ liftIO $ setInputFocus dis rt revertToParent 0
-        when (tl /= []) drawFrameBorder
-        ioMap_ unFocus ws
+    ff <- gets (focusedFloat . focusWS)
+
+    when (ff == Nothing) $ do
+        case fw of
+          Just w -> do
+            liftIO $ if null tl
+              then setWindowBorderWidth dis w 0
+              else when (scrn == fscn) $ setWindowBorderWidth dis w bw >> setWindowBorder dis w fc
+            when (scrn == fscn) $ liftIO $ setInputFocus dis w revertToParent 0
+          Nothing -> do
+            when (scrn == fscn) $ liftIO $ setInputFocus dis rt revertToParent 0
+            when (tl /= []) drawFrameBorder
+            ioMap_ unFocus ws
+
+    when (isJust ff) $ do
+        liftIO $ setWindowBorderWidth dis (fromJust ff) bw >> setWindowBorder dis (fromJust ff) fc
+        liftIO $ setInputFocus dis (fromJust ff) revertToParent 0
+
 
 drawFrameBorder :: SUN ()
 drawFrameBorder = do
@@ -545,9 +553,11 @@ eventDispatch !evt@(ButtonEvent {ev_event_type = et, ev_subwindow = sw}) = do
     r <- asks root
 
     when (et == buttonPress && sw /= none) $ do
-        focusWS =. deleteWinWS sw
+        focusWS =. (cycleHidden R . deleteWinWS sw)
         (x,y,w,h) <- getWinPosDim sw
         (floats . focusWS) =. M.insert sw (Rectangle x y w h)
+        liftIO $ setInputFocus dis sw revertToParent 0
+        liftIO $ raiseWindow dis sw
 
         (_, _, _, ox, oy, _, _, _) <- liftIO $ queryPointer dis sw
 
@@ -555,7 +565,9 @@ eventDispatch !evt@(ButtonEvent {ev_event_type = et, ev_subwindow = sw}) = do
                     grabModeAsync grabModeAsync none none currentTime
 
         when (ev_button evt == 1) $ mouseState =: Move sw (fi x,ox) (fi y,oy)
-        when (ev_button evt == 3) $ mouseState =: Resize sw (fi x,ox) (fi y,oy)
+        when (ev_button evt == 3) $ do
+            liftIO $ warpPointer dis none sw 0 0 0 0 (fip w) (fip h)
+            mouseState =: Resize sw (fi x) (fi y) (fi w) (fi h)
 
     when (et == buttonRelease) $ do
         mouseState =: Idle
@@ -566,12 +578,13 @@ eventDispatch !evt@(MotionEvent {ev_x = ex, ev_y = ey}) = do
 
       ms <- gets mouseState
       case ms of
-          (Move w (wx, ox) (wy, oy)) -> do
+          (Move w (wx, ox) (wy, oy)) ->
               let nx = fip $ wx + (ex - ox)
                   ny = fip $ wy + (ey - oy)
-              liftIO $ moveWindow dis w nx ny
+              in liftIO $ moveWindow dis w nx ny
 
-          (Resize _ _ _) -> return ()
+          (Resize win x y w h) -> do
+              liftIO $ resizeWindow dis win (fid ex - fid x) (fid ey - fid y)
 
           _ -> return ()
       clearEvents pointerMotionMask
@@ -614,7 +627,12 @@ eventDispatch !evt@(KeyEvent {ev_event_type = et}) = when (et == keyPress) $ do
 eventDispatch !(CrossingEvent {ev_window = w, ev_mode = em, ev_event_type = et}) =
     when (et == enterNotify && em == notifyNormal) $ do
       aws <- getAllWins
-      when (w `elem` aws) $ react $ screens =. focusToWin w
+      fws <- M.keys <$> gets (floats . focusWS)
+      when (w `elem` aws \\ fws) $ do
+        react $ screens =. focusToWin w
+        react $ (focusedFloat . focusWS) =: Nothing
+      when (w `elem` fws) $ do
+        react $ (focusedFloat . focusWS) =: Just w
 
 eventDispatch !(PropertyEvent {}) = runStackHook
 

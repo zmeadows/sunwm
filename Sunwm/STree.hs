@@ -59,6 +59,7 @@ data Workspace = Workspace
     , _hidden       :: ![Window]
     , _inFullScreen :: !Bool
     , _floats       :: !(Map Window Rectangle)
+    , _focusedFloat :: !(Maybe Window)
     } deriving (Show,Eq)
 
 data Dock = Dock
@@ -82,7 +83,7 @@ data SUNScreen = SUNScreen
 
 data MouseState =
     Move Window (CInt,CInt) (CInt,CInt)
-    | Resize Window (CInt,CInt) (CInt,CInt)
+    | Resize Window CInt CInt CInt CInt
     | Idle deriving (Show,Eq)
 
 data SUNState = SUNState
@@ -106,7 +107,7 @@ emptyZipper = SZ emptyFrame []
 
 -- | An empty default workspace
 emptyWS :: Workspace
-emptyWS = Workspace emptyZipper [] False M.empty
+emptyWS = Workspace emptyZipper [] False M.empty Nothing
 
 emptyScr :: Int -> Rectangle -> SUNScreen
 emptyScr !nws (Rectangle x y w h) = SUNScreen wss x y w h 1 []
@@ -500,13 +501,17 @@ getWSAllWins :: Workspace -> [Window]
 getWSAllWins !ws =
     let avs = (flattenToWins . get tree) ws
         ahs = get hidden ws
-    in avs ++ ahs
+        afs = M.keys $ get floats ws
+    in avs ++ ahs ++ afs
 
 getScrAllWins :: SUNScreen -> [Window]
 getScrAllWins = concatMap getWSAllWins . elems . get workspaces
 
 getScrVisWins :: SUNScreen -> [Window]
-getScrVisWins scr = flattenToWins $ get tree $ focused $ get workspaces scr
+getScrVisWins scr =
+    let tws = flattenToWins $ get tree $ focused $ get workspaces scr
+        fws = M.keys $ get floats $ focused $ get workspaces scr
+    in tws ++ fws
 
 -- | ------------- | --
 -- | CUSTOM LENSES | --
