@@ -26,7 +26,7 @@ import Data.Ord (comparing)
 import Data.Typeable
 import Data.Dynamic
 import Data.Map (Map)
-import qualified Data.Map.Strict as M
+import qualified Data.Map as M
 
 import Foreign.C.Types (CLong, CInt)
 
@@ -80,7 +80,10 @@ data SUNScreen = SUNScreen
     , _docks        :: [Dock]
     } deriving (Show,Eq)
 
-data MouseState = Move CInt CInt | Resize CInt CInt | Idle deriving (Show,Eq)
+data MouseState =
+    Move Window (CInt,CInt) (CInt,CInt)
+    | Resize Window (CInt,CInt) (CInt,CInt)
+    | Idle deriving (Show,Eq)
 
 data SUNState = SUNState
     { _screens      :: !(FocusMap Int SUNScreen)
