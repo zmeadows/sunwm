@@ -61,8 +61,6 @@ data UserConf = UserConf
     , _stackHook     :: SUN ()
     }
 
--- data MouseFocusStyle = None | Click | Follow
-
 data Plugin = Plugin
     { _pluginDataType  :: TypeRep
     , _pluginData      :: Dynamic
@@ -111,7 +109,6 @@ getFocusScrPos = (L.get xPos &&& L.get yPos) <$> gets focusScr
 setup :: UserConf -> IO (SUNConf,SUNState)
 setup !uc = do
   dis <- openDisplay ""
-  --installSignalHandlers
   let defRt = defaultRootWindow dis
   fc <- getColor dis $ L.get focusedBorder uc
   nc <- getColor dis $ L.get normalBorder uc
@@ -122,16 +119,22 @@ setup !uc = do
             then setBit 0 (fromIntegral m)
             else 0 :: KeyMask
           | (m, kcs) <- ms, kc <- kcs, kc /= 0]
+
   selectInput dis defRt $ substructureRedirectMask .|. substructureNotifyMask .|.
-                          structureNotifyMask -- .|. buttonPressMask .|. buttonReleaseMask
-  liftIO $ ungrabButton dis anyButton anyModifier defRt
-  liftIO $ ungrabKey dis anyKey anyModifier defRt
+                          structureNotifyMask .|. buttonPressMask .|. buttonReleaseMask
+
+  ungrabButton dis anyButton anyModifier defRt
+  ungrabKey dis anyKey anyModifier defRt
   xSetErrorHandler
   hSetBuffering stdout NoBuffering
   sync dis False
   scrRecs <- getScreenInfo dis
   let sc = generateScrBinds (length scrRecs) $ SUNConf dis defRt uc nc fc nmlck
       st = initState (length $ L.get wsNames uc) scrRecs
+
+  grabButton dis 1 mod1Mask defRt True buttonPressMask grabModeAsync grabModeAsync none none
+  grabButton dis 3 mod1Mask defRt True buttonPressMask grabModeAsync grabModeAsync none none
+
   return (sc,st)
 
 getColor :: Display -> String -> IO Pixel
@@ -513,7 +516,8 @@ eventDispatch !(MapRequestEvent {ev_window = win}) = do
     unless (win `elem` allWins || isF || isDia || isS || isDk) $ react $ do
       when (isJust fw) $ (hidden . focusWS) =. (fromJust fw:)
       (tree . focusWS) =. replace (Just win)
-    when (isDk || isDia || isS || isF) $ liftIO $ mapWindow dis win
+    when (isDk || isDia || isS || isF) $ do
+        liftIO $ mapWindow dis win
     when isDia $ liftIO $ setInputFocus dis win revertToParent 0
     when isDk $ detectDocks >> arrange >> refresh
 
@@ -534,6 +538,38 @@ eventDispatch evt@(ConfigureRequestEvent _ _ _ dis _ win x y w h bw a d vm) = re
                  sendEvent dis win False 0 ev
     liftIO $ sync dis False
     detectDocks
+
+eventDispatch !evt@(ButtonEvent {ev_event_type = et, ev_subwindow = sw}) = do
+    dis <- asks display
+    when (et == buttonPress && sw /= none) $ do
+        (x,y,w,h) <- getWinPosDim sw
+        (floats . focusWS) =. M.insert sw (Rectangle x y w h)
+        focusWS =. deleteWinWS sw
+        when (ev_button evt == 1) $ do
+            mouseState =: Move (ev_x evt) (ev_y evt)
+            liftIO $ grabPointer dis sw False (pointerMotionMask .|. buttonReleaseMask) grabModeAsync grabModeAsync none none currentTime
+            liftIO $ print "moving"
+        when (ev_button evt == 3) $ do
+            mouseState =: Resize (ev_x evt) (ev_y evt)
+            liftIO $ grabPointer dis sw False (pointerMotionMask .|. buttonReleaseMask) grabModeAsync grabModeAsync none none currentTime
+            liftIO $ print "resizing"
+    when (et == buttonRelease) $ do
+        mouseState =: Idle
+        liftIO $ print "released button"
+        liftIO $ ungrabPointer dis currentTime
+
+eventDispatch !evt@(MotionEvent {ev_window = w, ev_x = x, ev_y = y}) = do
+    dis <- asks display
+    ms <- gets mouseState
+    case ms of
+        (Move ox oy) -> do
+            liftIO $ print $ "MOVE " ++ show w
+            liftIO $ print (x + ox, y + oy)
+            liftIO $ moveWindow dis w (fi x + fi ox) (fi y + fi oy)
+        (Resize ox oy) -> do
+            liftIO $ print $ "RESIZE " ++ show w
+            liftIO $ print (x - ox,y - oy)
+        _ -> return ()
 
 eventDispatch !evt@(KeyEvent {ev_event_type = et}) = when (et == keyPress) $ do
     dis <- asks display
