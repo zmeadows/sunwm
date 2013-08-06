@@ -308,11 +308,17 @@ makeOnly = react $ focusWS =. only
 -- removes all traces of it from SUNState
 removeWindow :: Window -> SUN ()
 removeWindow w = react $ do
-  fw <- focusedWin
-  when (isJust fw) $ when (fromJust fw == w) $ raiseHidden R
-  screens =. annihilateWin w
-  inF <- gets (inFullScreen . focusWS)
-  when inF $ (inFullScreen . focusWS) =: False
+  ff <- gets (focusedFloat . focusWS)
+  when (isJust ff) $ do
+      (focusedFloat . focusWS) =: Nothing
+      (floats . focusWS) =. M.delete (fromJust ff)
+
+  when (isNothing ff) $ do
+    fw <- focusedWin
+    when (isJust fw) $ when (fromJust fw == w) $ raiseHidden R
+    screens =. annihilateWin w
+    inF <- gets (inFullScreen . focusWS)
+    when inF $ (inFullScreen . focusWS) =: False
 
 -- | Remove windows from workspaces when they don't actually exist according to X11.
 -- | TODO: make sure queryTree gets windows on all screens
@@ -334,8 +340,9 @@ killWindow = asks display >>= \dis -> do
   wmdelt <- atomWMDELETEWINDOW
   wmprot <- atomWMPROTOCOLS
   fw <- focusedWin
-  liftIO $ when (isJust fw) $ do
-    let w = fromJust fw
+  ff <- gets (focusedFloat . focusWS)
+  react $ liftIO $ when (isJust fw || isJust ff) $ do
+    let w = if (isJust ff) then fromJust ff else fromJust fw
     protocols <- getWMProtocols dis w
     if wmdelt `elem` protocols
       then allocaXEvent $ \ev -> do
@@ -521,7 +528,14 @@ eventDispatch !(MapRequestEvent {ev_window = win}) = do
     allWins <- getAllWins
     isF <- isFullscreen win ; isDia <- isDialog win ; isS <- isSplash win
     isDk <- isDock win
+    liftIO $ print $ "WINDOW " ++ show win ++ " REQUESTING MAPPING"
+    when (isF) $ liftIO $ print "FULLSCREEN WINDOW OPENED"
+    when (isDia) $ liftIO $ print "DIALOG OPENED"
+    when (isS) $ liftIO $ print "SPLASH WINDOW OPENED"
+    when (isDk) $ liftIO $ print "DOCK WINDOW OPENED"
     unless (win `elem` allWins || isF || isDia || isS || isDk) $ react $ do
+      liftIO $ print $ "all windows: " ++ show allWins
+      liftIO $ print $ "added " ++ show win ++ " to tree"
       when (isJust fw) $ (hidden . focusWS) =. (fromJust fw:)
       (tree . focusWS) =. replace (Just win)
     when (isDk || isDia || isS || isF) $ do
@@ -556,6 +570,7 @@ eventDispatch !evt@(ButtonEvent {ev_event_type = et, ev_subwindow = sw}) = do
         focusWS =. (cycleHidden R . deleteWinWS sw)
         (x,y,w,h) <- getWinPosDim sw
         (floats . focusWS) =. M.insert sw (Rectangle x y w h)
+        (focusedFloat . focusWS) =: Just sw
         liftIO $ setInputFocus dis sw revertToParent 0
         liftIO $ raiseWindow dis sw
 
