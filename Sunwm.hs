@@ -20,7 +20,7 @@ defaultConfig = UserConf {
     _topKeyBinds   = defaultTopKeys,
     _wsNames       = workspaceNames,
     _prefixKey     = (0, xK_F13),
-    _terminal      = "xterm",
+    _terminal      = "urxvt",
     _initHook      = return (),
     _stackHook     = return ()
     }
