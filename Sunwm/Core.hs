@@ -37,6 +37,7 @@ import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Bits hiding (shift)
 import Data.Dynamic
+import qualified Data.Set as S
 
 import Graphics.X11.Xlib hiding (refreshKeyboardMapping)
 import Graphics.X11.Xlib.Extras
@@ -167,9 +168,14 @@ refresh :: SUN ()
 refresh = do
     dis <- asks display
     scrs <- elems <$> gets screens
+    ff <- gets (focusedFloat . focusWS)
     let vs = concatMap getScrVisWins scrs
         hs = concatMap getScrAllWins scrs \\ vs
-    ioMap_ (unmapWindow dis) hs >> ioMap_ (mapWindow dis) vs
+        fs = concatMap getScrFloats scrs
+    ioMap_ (unmapWindow dis) hs
+    ioMap_ (mapWindow dis) vs
+    ioMap_ (raiseWindow dis) fs
+    liftIO $ when (isJust ff) $ raiseWindow dis $ fromJust ff
 
 runStackHook :: SUN ()
 runStackHook = asks userConf >>= L.get stackHook
@@ -218,7 +224,7 @@ updateFocusN scrn = do
 
     ff <- gets (focusedFloat . focusWS)
 
-    when (ff == Nothing) $ do
+    when (isNothing ff) $
         case fw of
           Just w -> do
             liftIO $ if null tl
@@ -233,7 +239,6 @@ updateFocusN scrn = do
     when (isJust ff) $ do
         liftIO $ setWindowBorderWidth dis (fromJust ff) bw >> setWindowBorder dis (fromJust ff) fc
         liftIO $ setInputFocus dis (fromJust ff) revertToParent 0
-
 
 drawFrameBorder :: SUN ()
 drawFrameBorder = do
@@ -258,7 +263,7 @@ drawFrameBorder = do
         freeGC dis gc
 
 react :: SUN () -> SUN ()
-react sun = sun >> arrange >> refresh >> updateFocus >> runStackHook
+react sun = sun >> detectDocks >> arrange >> refresh >> updateFocus >> runStackHook
 
 -- | Swap the content (empty or not) of two adjacent frames in specified direction.
 swapToDir :: Direction -> SUN ()
@@ -308,17 +313,18 @@ makeOnly = react $ focusWS =. only
 -- removes all traces of it from SUNState
 removeWindow :: Window -> SUN ()
 removeWindow w = react $ do
+  (floats . focusWS) =. S.delete w
+
   ff <- gets (focusedFloat . focusWS)
   when (isJust ff) $ do
       (focusedFloat . focusWS) =: Nothing
-      (floats . focusWS) =. M.delete (fromJust ff)
 
-  when (isNothing ff) $ do
-    fw <- focusedWin
-    when (isJust fw) $ when (fromJust fw == w) $ raiseHidden R
-    screens =. annihilateWin w
-    inF <- gets (inFullScreen . focusWS)
-    when inF $ (inFullScreen . focusWS) =: False
+  fw <- focusedWin
+  when (isJust fw) $ when (fromJust fw == w) $ raiseHidden R
+  screens =. annihilateWin w
+
+  inF <- gets (inFullScreen . focusWS)
+  when inF $ (inFullScreen . focusWS) =: False
 
 -- | Remove windows from workspaces when they don't actually exist according to X11.
 -- | TODO: make sure queryTree gets windows on all screens
@@ -336,13 +342,13 @@ getAllWins = concat <$> mapElems getScrAllWins <$> gets screens
 
 -- | Kill a window. Properly. Thanks XMonad!
 killWindow :: SUN ()
-killWindow = asks display >>= \dis -> do
+killWindow = asks display >>= \dis -> react $ do
   wmdelt <- atomWMDELETEWINDOW
   wmprot <- atomWMPROTOCOLS
   fw <- focusedWin
   ff <- gets (focusedFloat . focusWS)
-  react $ liftIO $ when (isJust fw || isJust ff) $ do
-    let w = if (isJust ff) then fromJust ff else fromJust fw
+  liftIO $ when (isJust fw || isJust ff) $ do
+    let w = fromMaybe (fromJust fw) ff
     protocols <- getWMProtocols dis w
     if wmdelt `elem` protocols
       then allocaXEvent $ \ev -> do
@@ -516,31 +522,21 @@ eventLoop = forever $ asks display >>= \dis -> do
 eventDispatch :: Event -> SUN ()
 
 eventDispatch !(UnmapEvent {ev_window = w, ev_send_event = synthetic}) =
-    if synthetic
-        then removeWindow w
-        else detectDocks
+    if synthetic then removeWindow w else detectDocks
 
 -- | TODO: deal with splash/dialog etc (wait until float support added)
-eventDispatch !(MapRequestEvent {ev_window = win}) = do
+eventDispatch !(MapRequestEvent {ev_window = win}) = react $ do
     dis <- asks display
     fw <- focusedWin
     liftIO $ selectInput dis win clientMask
     allWins <- getAllWins
     isF <- isFullscreen win ; isDia <- isDialog win ; isS <- isSplash win
     isDk <- isDock win
-    liftIO $ print $ "WINDOW " ++ show win ++ " REQUESTING MAPPING"
-    when (isF) $ liftIO $ print "FULLSCREEN WINDOW OPENED"
-    when (isDia) $ liftIO $ print "DIALOG OPENED"
-    when (isS) $ liftIO $ print "SPLASH WINDOW OPENED"
-    when (isDk) $ liftIO $ print "DOCK WINDOW OPENED"
     unless (win `elem` allWins || isF || isDia || isS || isDk) $ react $ do
-      liftIO $ print $ "all windows: " ++ show allWins
-      liftIO $ print $ "added " ++ show win ++ " to tree"
       when (isJust fw) $ (hidden . focusWS) =. (fromJust fw:)
       (tree . focusWS) =. replace (Just win)
-    when (isDk || isDia || isS || isF) $ do
-        liftIO $ mapWindow dis win
-    when isDia $ liftIO $ setInputFocus dis win revertToParent 0
+    when (isDk || isS || isF) $ liftIO $ mapWindow dis win
+    when isDia $ (focusedFloat . focusWS) =: Just win
     when isDk $ detectDocks >> arrange >> refresh
 
 -- | TODO: check if detectDocks is actually needed here
@@ -550,8 +546,7 @@ eventDispatch evt@(ConfigureRequestEvent _ _ _ dis _ win x y w h bw a d vm) = re
     ws  <- flattenToWins <$> gets (tree . focusWS)
     wa <- liftIO $ getWindowAttributes dis win
     liftIO $ if win `notElem` ws
-        then do
-            configureWindow dis win vm $ WindowChanges x y w h bw a d
+        then configureWindow dis win vm $ WindowChanges x y w h bw a d
         else allocaXEvent $ \ev -> do
                  setEventType ev configureNotify
                  setConfigureEvent ev win win
@@ -567,28 +562,28 @@ eventDispatch !evt@(ButtonEvent {ev_event_type = et, ev_subwindow = sw}) = do
     r <- asks root
 
     when (et == buttonPress && sw /= none) $ do
-        focusWS =. (cycleHidden R . deleteWinWS sw)
+        fs <-  S.toList <$> gets (floats . focusWS)
+        when (sw `notElem` fs) $ focusWS =. (cycleHidden R . deleteWinWS sw)
         (x,y,w,h) <- getWinPosDim sw
-        (floats . focusWS) =. M.insert sw (Rectangle x y w h)
+        (floats . focusWS) =. S.insert sw
         (focusedFloat . focusWS) =: Just sw
-        liftIO $ setInputFocus dis sw revertToParent 0
-        liftIO $ raiseWindow dis sw
+        refresh >> updateFocus
 
         (_, _, _, ox, oy, _, _, _) <- liftIO $ queryPointer dis sw
 
-        liftIO $ grabPointer dis r False (pointerMotionMask .|. buttonReleaseMask)
+        void $ liftIO $ grabPointer dis r False (pointerMotionMask .|. buttonReleaseMask)
                     grabModeAsync grabModeAsync none none currentTime
 
         when (ev_button evt == 1) $ mouseState =: Move sw (fi x,ox) (fi y,oy)
         when (ev_button evt == 3) $ do
             liftIO $ warpPointer dis none sw 0 0 0 0 (fip w) (fip h)
-            mouseState =: Resize sw (fi x) (fi y) (fi w) (fi h)
+            mouseState =: Resize sw (fi x) (fi y)
 
     when (et == buttonRelease) $ do
         mouseState =: Idle
         liftIO $ ungrabPointer dis currentTime
 
-eventDispatch !evt@(MotionEvent {ev_x = ex, ev_y = ey}) = do
+eventDispatch !(MotionEvent {ev_x = ex, ev_y = ey}) = do
       dis <- asks display
 
       ms <- gets mouseState
@@ -598,8 +593,8 @@ eventDispatch !evt@(MotionEvent {ev_x = ex, ev_y = ey}) = do
                   ny = fip $ wy + (ey - oy)
               in liftIO $ moveWindow dis w nx ny
 
-          (Resize win x y w h) -> do
-              liftIO $ resizeWindow dis win (fid ex - fid x) (fid ey - fid y)
+          (Resize win wx wy) ->
+              liftIO $ resizeWindow dis win (fid ex - fid wx) (fid ey - fid wy)
 
           _ -> return ()
       clearEvents pointerMotionMask
@@ -617,8 +612,8 @@ eventDispatch !evt@(KeyEvent {ev_event_type = et}) = when (et == keyPress) $ do
     when ((km,ks) == p && not inP) $ do
       inPrefix =: True
       cur <- makeCursor xC_rtl_logo
-      _ <- liftIO $ grabPointer dis rt False 0 grabModeAsync grabModeAsync none cur currentTime
-      _ <- liftIO $ grabKeyboard dis rt True grabModeAsync grabModeAsync currentTime
+      void $ liftIO $ grabPointer dis rt False 0 grabModeAsync grabModeAsync none cur currentTime
+      void $ liftIO $ grabKeyboard dis rt True grabModeAsync grabModeAsync currentTime
       liftIO $ freeCursor dis cur
 
     when inP $ do
@@ -642,18 +637,22 @@ eventDispatch !evt@(KeyEvent {ev_event_type = et}) = when (et == keyPress) $ do
 eventDispatch !(CrossingEvent {ev_window = w, ev_mode = em, ev_event_type = et}) =
     when (et == enterNotify && em == notifyNormal) $ do
       aws <- getAllWins
-      fws <- M.keys <$> gets (floats . focusWS)
+      fws <- S.toList <$> gets (floats . focusWS)
+      dis <- asks display
       when (w `elem` aws \\ fws) $ do
-        react $ screens =. focusToWin w
-        react $ (focusedFloat . focusWS) =: Nothing
+        screens =. focusToWin w
+        (focusedFloat . focusWS) =: Nothing
+        updateFocus
       when (w `elem` fws) $ do
-        react $ (focusedFloat . focusWS) =: Just w
+        (focusedFloat . focusWS) =: Just w
+        updateFocus
+        liftIO $ raiseWindow dis w
 
 eventDispatch !(PropertyEvent {}) = runStackHook
 
 -- | Ignore all other event types for which specific behavior isn't defined
 eventDispatch !evt
-    | ev_event_type evt == configureNotify = detectDocks >> arrange >> refresh
+    | ev_event_type evt == configureNotify && ev_send_event evt = detectDocks >> arrange >> refresh
     | otherwise = return ()
 
 clientMask :: EventMask
@@ -694,7 +693,13 @@ clearEvents mask = asks display >>= \d -> liftIO $ do
     sync d False
     allocaXEvent $ \p -> fix $ \again -> do
         more <- checkMaskEvent d mask p
-        when more again -- beautiful
+        when more again
+
+unfloat :: SUN ()
+unfloat = react $ focusWS =. defloat
+
+cycleFloats :: SUN ()
+cycleFloats = focusWS =. floatCycle >> refresh >> updateFocus
 
 -- | TODO: switch grabPrefixTops to IO monad instead of SUN
 sunwm :: UserConf -> [Plugin] -> IO ()

@@ -20,13 +20,15 @@ import Sunwm.FocusMap
 
 import Prelude hiding ((.))
 import Data.Label hiding (fw)
-import Data.List (minimumBy, delete, find, findIndex)
+import Data.List
 import Data.Maybe
 import Data.Ord (comparing)
 import Data.Typeable
 import Data.Dynamic
 import Data.Map (Map)
 import qualified Data.Map as M
+import Data.Set (Set)
+import qualified Data.Set as S
 
 import Foreign.C.Types (CLong, CInt)
 
@@ -58,7 +60,7 @@ data Workspace = Workspace
     { _tree         :: !(SUNZipper)
     , _hidden       :: ![Window]
     , _inFullScreen :: !Bool
-    , _floats       :: !(Map Window Rectangle)
+    , _floats       :: !(Set Window)
     , _focusedFloat :: !(Maybe Window)
     } deriving (Show,Eq)
 
@@ -82,8 +84,8 @@ data SUNScreen = SUNScreen
     } deriving (Show,Eq)
 
 data MouseState =
-    Move Window (CInt,CInt) (CInt,CInt)
-    | Resize Window CInt CInt CInt CInt
+      Move Window (CInt,CInt) (CInt,CInt)
+    | Resize Window CInt CInt
     | Idle deriving (Show,Eq)
 
 data SUNState = SUNState
@@ -107,7 +109,7 @@ emptyZipper = SZ emptyFrame []
 
 -- | An empty default workspace
 emptyWS :: Workspace
-emptyWS = Workspace emptyZipper [] False M.empty Nothing
+emptyWS = Workspace emptyZipper [] False S.empty Nothing
 
 emptyScr :: Int -> Rectangle -> SUNScreen
 emptyScr !nws (Rectangle x y w h) = SUNScreen wss x y w h 1 []
@@ -501,7 +503,7 @@ getWSAllWins :: Workspace -> [Window]
 getWSAllWins !ws =
     let avs = (flattenToWins . get tree) ws
         ahs = get hidden ws
-        afs = M.keys $ get floats ws
+        afs = S.toList $ get floats ws
     in avs ++ ahs ++ afs
 
 getScrAllWins :: SUNScreen -> [Window]
@@ -510,8 +512,11 @@ getScrAllWins = concatMap getWSAllWins . elems . get workspaces
 getScrVisWins :: SUNScreen -> [Window]
 getScrVisWins scr =
     let tws = flattenToWins $ get tree $ focused $ get workspaces scr
-        fws = M.keys $ get floats $ focused $ get workspaces scr
+        fws = S.toList $ get floats $ focused $ get workspaces scr
     in tws ++ fws
+
+getScrFloats :: SUNScreen -> [Window]
+getScrFloats scr = S.toList $ get floats $ focused $ get workspaces scr
 
 -- | ------------- | --
 -- | CUSTOM LENSES | --
@@ -545,10 +550,15 @@ focusWSscr = lens getFocusWSscr setFocusWSscr
 -- | Moves the currently focused window to another workspace
 moveToWS :: Int -> FocusMap Int Workspace -> FocusMap Int Workspace
 moveToWS nwsn m@(fwsn,_)
-    | nwsn == fwsn || isNothing fw = m
+    | nwsn == fwsn || isNothing fw && isNothing ff = m
+    | isJust ff = adjustK fwsn (set focusedFloat Nothing)
+                  $ adjustK nwsn (set focusedFloat ff)
+                  $ adjustK fwsn (modify floats (S.delete $ fromJust ff))
+                  $ adjustK nwsn (modify floats (S.insert $ fromJust ff)) m
     | otherwise = adjustK nwsn (modify tree $ replace fw)
                   $ adjustK nwsn (modify hidden (maybeToList sfw ++)) m'
-  where fw = fromFrame $ get tree $ focused m
+  where ff = get focusedFloat $ focused m
+        fw = fromFrame $ get tree $ focused m
         m' = adjustK fwsn (cycleHidden R . modify tree clear) m
         sfw = fromFrame $ get tree $ m <!> nwsn
 
@@ -589,6 +599,18 @@ shift dir m@(fscn,_)
         nw = fromFrame $ get (tree . focusWSscr) $ focused m'
         fw = fromFrame $ get (tree . focusWSscr) $ focused m
 
+defloat :: Workspace -> Workspace
+defloat ws
+    | isNothing ff = ws
+    | isNothing fw = ws'
+    | isJust fw = modify hidden (fromJust fw:) ws'
+    | otherwise = modify tree (replace ff) ws
+  where ff = get focusedFloat ws
+        fw = fromFrame $ get tree ws
+        ws' =  set focusedFloat Nothing
+               $ modify tree (replace ff)
+               $ modify floats (S.delete $ fromJust ff) ws
+
 only :: Workspace -> Workspace
 only ws =
     let fw = fromFrame $ get tree ws
@@ -602,3 +624,11 @@ swapWSscr nscn m@(fscn,_) =
         ows = get focusWSscr $ m <!> nscn
     in adjustK fscn (set focusWSscr ows) $ adjustK nscn (set focusWSscr fws) m
 
+floatCycle :: Workspace -> Workspace
+floatCycle ws
+    | isNothing ff && (not . null) fs = set focusedFloat (Just $ head fs) ws
+    | isJust ff && length fs > 1 = set focusedFloat (Just nfs) ws
+    | otherwise = ws
+    where ff = get focusedFloat ws
+          fs = sort $ S.toList $ get floats ws
+          (_,_:nfs:_) = break (== fromJust ff) $ fs ++ fs
