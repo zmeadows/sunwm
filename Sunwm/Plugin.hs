@@ -8,13 +8,9 @@ import qualified Data.Map as M
 import Data.Label.PureM ((=.),gets)
 import Control.Applicative ((<$>))
 import Data.Maybe
-import Control.Monad.IO.Class
 
 putPD :: Typeable a => a -> SUN ()
-putPD s = do
-    gets pluginState >>= liftIO . print
-    pluginState =. M.insert (typeOf s) (toDyn s)
-    gets pluginState >>= liftIO . print
+putPD s = pluginState =. M.insert (typeOf s) (toDyn s)
 
 getPD :: Typeable a => TypeRep -> SUN a
 getPD tr = do
