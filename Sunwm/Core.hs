@@ -315,12 +315,16 @@ removeWindow :: Window -> SUN ()
 removeWindow w = react $ do
   (floats . focusWS) =. S.delete w
 
-  ff <- gets (focusedFloat . focusWS)
-  when (isJust ff) $ do
-      (focusedFloat . focusWS) =: Nothing
-
   fw <- focusedWin
-  when (isJust fw) $ when (fromJust fw == w) $ raiseHidden R
+  ff <- gets (focusedFloat . focusWS)
+  fs <- S.toList <$> gets (floats . focusWS)
+
+  when (isJust ff) $ when (fromJust ff == w) $
+      if ((not . null) fs)
+          then (focusedFloat . focusWS) =: (Just $ head fs)
+          else (focusedFloat . focusWS) =: Nothing
+
+  when (null fs && isJust fw) $ when (fromJust fw == w) $ raiseHidden R
   screens =. annihilateWin w
 
   inF <- gets (inFullScreen . focusWS)
@@ -524,7 +528,6 @@ eventDispatch :: Event -> SUN ()
 eventDispatch !(UnmapEvent {ev_window = w, ev_send_event = synthetic}) =
     if synthetic then removeWindow w else detectDocks
 
--- | TODO: deal with splash/dialog etc (wait until float support added)
 eventDispatch !(MapRequestEvent {ev_window = win}) = react $ do
     dis <- asks display
     fw <- focusedWin
@@ -536,7 +539,9 @@ eventDispatch !(MapRequestEvent {ev_window = win}) = react $ do
       when (isJust fw) $ (hidden . focusWS) =. (fromJust fw:)
       (tree . focusWS) =. replace (Just win)
     when (isDk || isS || isF) $ liftIO $ mapWindow dis win
-    when isDia $ (focusedFloat . focusWS) =: Just win
+    when isDia $ do
+        (floats . focusWS) =. S.insert win
+        (focusedFloat . focusWS) =: Just win
     when isDk $ detectDocks >> arrange >> refresh
 
 -- | TODO: check if detectDocks is actually needed here
@@ -567,7 +572,7 @@ eventDispatch !evt@(ButtonEvent {ev_event_type = et, ev_subwindow = sw}) = do
         (x,y,w,h) <- getWinPosDim sw
         (floats . focusWS) =. S.insert sw
         (focusedFloat . focusWS) =: Just sw
-        refresh >> updateFocus
+        arrange >> refresh >> updateFocus
 
         (_, _, _, ox, oy, _, _, _) <- liftIO $ queryPointer dis sw
 
