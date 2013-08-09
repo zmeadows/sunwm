@@ -454,7 +454,10 @@ deleteWinTree w !sz = case delWinZip of
 
 -- | Removes a window from a whole workspace (even if it's hidden)
 deleteWinWS :: Window -> Workspace -> Workspace
-deleteWinWS w !ws = modify tree (deleteWinTree w) $ modify hidden (delete w) ws
+deleteWinWS w !ws =
+    modify floats (S.delete w)
+    $ modify tree (deleteWinTree w)
+    $ modify hidden (delete w) ws
 
 deleteWinScr :: Window -> SUNScreen -> SUNScreen
 deleteWinScr w = modify workspaces $ mapF $ deleteWinWS w
