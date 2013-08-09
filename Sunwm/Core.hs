@@ -239,6 +239,13 @@ updateFocusN scrn = do
     when (isJust ff) $ do
         liftIO $ setWindowBorderWidth dis (fromJust ff) bw >> setWindowBorder dis (fromJust ff) fc
         liftIO $ setInputFocus dis (fromJust ff) revertToParent 0
+        case fw of
+          Just w -> do
+            liftIO $ when (null tl) $ setWindowBorderWidth dis w 0
+          Nothing -> do
+            when (tl /= []) drawFrameBorder
+            ioMap_ unFocus ws
+
 
 drawFrameBorder :: SUN ()
 drawFrameBorder = do
@@ -526,7 +533,7 @@ eventLoop = forever $ asks display >>= \dis -> do
 eventDispatch :: Event -> SUN ()
 
 eventDispatch !(UnmapEvent {ev_window = w, ev_send_event = synthetic}) =
-    if synthetic then removeWindow w else detectDocks
+    react $ when synthetic $ removeWindow w
 
 eventDispatch !(MapRequestEvent {ev_window = win}) = react $ do
     dis <- asks display
@@ -535,17 +542,17 @@ eventDispatch !(MapRequestEvent {ev_window = win}) = react $ do
     allWins <- getAllWins
     isF <- isFullscreen win ; isDia <- isDialog win ; isS <- isSplash win
     isDk <- isDock win
-    unless (win `elem` allWins || isF || isDia || isS || isDk) $ react $ do
+    unless (win `elem` allWins || isF || isDia || isS || isDk) $ do
       when (isJust fw) $ (hidden . focusWS) =. (fromJust fw:)
       (tree . focusWS) =. replace (Just win)
     when (isDk || isS || isF) $ liftIO $ mapWindow dis win
     when isDia $ do
         (floats . focusWS) =. S.insert win
         (focusedFloat . focusWS) =: Just win
-    when isDk $ detectDocks >> arrange >> refresh
 
 -- | TODO: check if detectDocks is actually needed here
-eventDispatch !(DestroyWindowEvent {ev_window = w}) = removeWindow w >> detectDocks
+eventDispatch !(DestroyWindowEvent {ev_window = w}) =
+    removeWindow w >> detectDocks
 
 eventDispatch evt@(ConfigureRequestEvent _ _ _ dis _ win x y w h bw a d vm) = react $ do
     ws  <- flattenToWins <$> gets (tree . focusWS)
@@ -587,6 +594,7 @@ eventDispatch !evt@(ButtonEvent {ev_event_type = et, ev_subwindow = sw}) = do
     when (et == buttonRelease) $ do
         mouseState =: Idle
         liftIO $ ungrabPointer dis currentTime
+        refresh >> drawFrameBorder
 
 eventDispatch !(MotionEvent {ev_x = ex, ev_y = ey}) = do
       dis <- asks display
