@@ -47,13 +47,13 @@ initBarConf = BarConf {
     _titleColor       = ("#ff0000", "#222222")
     }
 
+$(L.mkLabels [''BarConf, ''XmobarState])
+
 initXmobarState :: BarConf -> XmobarState
 initXmobarState bc = XmobarState bc M.empty
 
 typeRepXmobar :: TypeRep
 typeRepXmobar = typeOf $ initXmobarState initBarConf
-
-$(L.mkLabels [''BarConf, ''XmobarState])
 
 xmobar :: BarConf -> Plugin
 xmobar bc = Plugin (typeOf $ initXmobarState initBarConf) (toDyn $ initXmobarState bc) initXMobar updateXMobars
@@ -109,4 +109,3 @@ getWinTitles !wins = asks display >>= \dis -> catMaybes <$> ioMap (fetchName dis
 
 putStrBar :: Handle -> String -> SUN ()
 putStrBar h str = liftIO $ hPutStrLn h str >> hFlush h
-
