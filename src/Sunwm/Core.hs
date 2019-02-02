@@ -31,7 +31,7 @@ import Control.Monad.Error
 import Data.Maybe
 import Data.List ((\\), find, nub)
 import Data.Label ((:->))
-import Data.Label.PureM ((=:),(=.),gets,asks)
+import Data.Label.Monadic ((=:),(=.),gets,asks)
 import qualified Data.Label as L
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
@@ -43,6 +43,7 @@ import Graphics.X11.Xlib.Extras
 import Graphics.X11.Xinerama
 
 import Foreign.C.Types (CLong)
+import Data.Typeable
 
 import System.IO
 import System.Process
@@ -80,7 +81,7 @@ data SUNConf = SUNConf
     }
 
 newtype SUN a = SUN (ErrorT String (ReaderT SUNConf (StateT SUNState IO)) a)
-    deriving (Monad, MonadPlus, MonadIO, MonadState SUNState, MonadReader SUNConf, Functor)
+    deriving (Monad, MonadIO, MonadState SUNState, MonadReader SUNConf, Applicative, Functor)
 
 $(L.mkLabels [''SUNConf, ''UserConf, ''Plugin])
 
@@ -166,7 +167,7 @@ refresh = do
     scrs <- elems <$> gets screens
     let vs = concatMap getScrVisWins scrs
         hs = concatMap getScrAllWins scrs \\ vs
-    ioMap_ (unmapWindow dis) hs >> ioMap_ (mapWindow dis) vs
+    ioMap_ (mapWindow dis) vs >> ioMap_ (unmapWindow dis) hs
 
 runStackHook :: SUN ()
 runStackHook = asks userConf >>= L.get stackHook
@@ -545,17 +546,18 @@ eventDispatch !evt@(KeyEvent {ev_event_type = et}) = when (et == keyPress) $ do
         makeCursor c = liftIO $ createFontCursor dis c
     ks <- liftIO $ keycodeToKeysym dis kc 0
 
-    when ((km,ks) == p && not inP) $ do
+
+    when (not inP && (km,ks) == p) $ do
       inPrefix =: True
       cur <- makeCursor xC_rtl_logo
-      _ <- liftIO $ grabPointer dis rt False 0 grabModeAsync grabModeAsync none cur currentTime
-      _ <- liftIO $ grabKeyboard dis rt True grabModeAsync grabModeAsync currentTime
+      _ <- liftIO $ grabPointer dis rt False 0 grabModeAsync grabModeAsync none cur (ev_time evt)
+      _ <- liftIO $ grabKeyboard dis rt False grabModeAsync grabModeAsync (ev_time evt)
       liftIO $ freeCursor dis cur
 
     when inP $ do
       kbs <- asks (keyBinds . userConf)
-      let kt = M.lookup (km,ks) kbs
-      case kt of
+      let kmCleaned = (complement (mod4Mask) .&. km) -- TODO: generalize this
+      case M.lookup(kmCleaned, ks) kbs of
           (Just act) -> act >> do
             liftIO $ ungrabKeyboard dis currentTime
             liftIO $ ungrabPointer dis currentTime

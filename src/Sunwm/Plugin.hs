@@ -4,8 +4,9 @@ import Sunwm.STree
 import Sunwm.Core
 
 import Data.Dynamic
+import Data.Typeable
 import qualified Data.Map.Strict as M
-import Data.Label.PureM ((=.),gets)
+import Data.Label.Monadic ((=.),gets)
 import Control.Applicative ((<$>))
 import Data.Maybe
 import Control.Monad.IO.Class

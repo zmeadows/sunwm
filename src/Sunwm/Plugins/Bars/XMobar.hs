@@ -14,12 +14,13 @@ import Control.Applicative ((<$>))
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad (when)
 
-import Data.Label.PureM (asks, gets)
+import Data.Label.Monadic (asks, gets)
 import qualified Data.Label as L
 import Data.Maybe (catMaybes, isJust, fromJust)
 import Data.List (delete, intercalate)
 import Data.Dynamic
 import qualified Data.Map.Strict as M
+import Data.Typeable
 
 import Graphics.X11.Xlib.Extras
 import Graphics.X11.Xlib (Window)

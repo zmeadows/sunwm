@@ -1,17 +1,84 @@
-name: sunWM
-version: 0.0.4
-synopsis: X11 tiling window-manager
-category: System
-license: MIT
-license-file: LICENSE
-author: Zac Meadows
-maintainer: zmeadows@gmail.com
+cabal-version: 1.12
 
-cabal-version: >= 1.2
-build-type: Simple
+-- This file has been generated from package.yaml by hpack version 0.31.1.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 6f15f7c335dcf1a630444a0c8c257afaba78edb39dc2b6116c7e53a45cb541ee
 
-executable sunwm
-  main-is: Sunwm.hs
-  build-depends: base, X11, fclabels, mtl, containers, extensible-exceptions, unix, transformers, process
-  ghc-options: -funbox-strict-fields -O2 -fspec-constr-count=56 -Wall
-  hs-source-dirs: Sunwm .
+name:           sunwm
+version:        0.1.0.0
+description:    Please see the README on GitHub at <https://github.com/githubuser/sunwm#readme>
+homepage:       https://github.com/githubuser/sunwm#readme
+bug-reports:    https://github.com/githubuser/sunwm/issues
+author:         Author name here
+maintainer:     example@example.com
+copyright:      2019 Author name here
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+    ChangeLog.md
+
+source-repository head
+  type: git
+  location: https://github.com/githubuser/sunwm
+
+library
+  exposed-modules:
+      Lib, Sunwm.Core, Sunwm.FocusMap, Sunwm.Plugin, Sunwm.STree, Sunwm.Plugins.Bars.XMobar
+  other-modules:
+      Paths_sunwm
+  hs-source-dirs:
+      src
+  ghc-options:         -Wall
+                       -optc-O3
+                       -optc-ffast-math
+                       -funbox-strict-fields
+                       -O2
+                       -funfolding-use-threshold=16
+                       -Wcompat
+                       -Wnoncanonical-monad-instances
+                       -Wnoncanonical-monadfail-instances
+                       -Wincomplete-uni-patterns
+                       -Wincomplete-record-updates
+  build-depends:
+      base >=4.7 && <5, X11, fclabels, mtl, containers, extensible-exceptions, unix, transformers, process
+  default-language: Haskell2010
+  default-extentions: Strict
+
+executable sunwm-exe
+  main-is: Main.hs
+  other-modules:
+      Paths_sunwm
+  hs-source-dirs:
+      app
+  ghc-options:         -Wall
+                       -optc-O3
+                       -optc-ffast-math
+                       -funbox-strict-fields
+                       -O2
+                       -funfolding-use-threshold=16
+                       -Wcompat
+                       -Wnoncanonical-monad-instances
+                       -Wnoncanonical-monadfail-instances
+                       -Wincomplete-uni-patterns
+                       -Wincomplete-record-updates
+  build-depends:
+      base >=4.7 && <5, sunwm, X11, containers
+  default-language: Haskell2010
+  default-extentions: Strict
+
+test-suite sunwm-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Paths_sunwm
+  hs-source-dirs:
+      test
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , sunwm
+  default-language: Haskell2010

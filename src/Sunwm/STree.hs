@@ -18,7 +18,7 @@ module Sunwm.STree where
 
 import Sunwm.FocusMap
 
-import Prelude hiding ((.))
+import Prelude hiding ((.), traverse)
 import Data.Label hiding (fw)
 import Data.List (minimumBy, delete, find, findIndex)
 import Data.Maybe
@@ -505,29 +505,29 @@ getScrVisWins scr = flattenToWins $ get tree $ focused $ get workspaces scr
 -- | ------------- | --
 
 screenN :: Int -> SUNState :-> SUNScreen
-screenN n = lens getScreenN setScreenN
+screenN n = lens getScreenN modScreenN
   where getScreenN !ss = get screens ss <!> n
-        setScreenN !scr !ss = modify screens (updateK n scr) ss
+        modScreenN !scrF !ss = modify screens (adjustK n scrF) ss
 
 focusScr :: SUNState :-> SUNScreen
-focusScr = lens getFocusScr setFocusScr
+focusScr = lens getFocusScr modFocusScr
   where getFocusScr = focused . get screens
-        setFocusScr !scr !ss = modify screens (update scr) ss
+        modFocusScr !scrF !ss = modify screens (adjust scrF) ss
 
 workspaceN :: Int -> SUNState :-> Workspace
-workspaceN n = lens getWorkspaceN setWorkspaceN
+workspaceN n = lens getWorkspaceN modWorkspaceN
   where getWorkspaceN !ss = get (workspaces . focusScr) ss <!> n
-        setWorkspaceN !ws = modify (workspaces . focusScr) (updateK n ws)
+        modWorkspaceN !wsF = modify (workspaces . focusScr) (adjustK n wsF)
 
 focusWS :: SUNState :-> Workspace
-focusWS = lens getFocusWS setFocusWS
+focusWS = lens getFocusWS modFocusWS
   where getFocusWS = focused . get (workspaces . focusScr)
-        setFocusWS !ws = modify (workspaces . focusScr) (update ws)
+        modFocusWS !wsF = modify (workspaces . focusScr) (adjust wsF)
 
 focusWSscr :: SUNScreen :-> Workspace
-focusWSscr = lens getFocusWSscr setFocusWSscr
+focusWSscr = lens getFocusWSscr modFocusWSscr
   where getFocusWSscr = focused . get workspaces
-        setFocusWSscr !ws = modify workspaces (update ws)
+        modFocusWSscr !wsF = modify workspaces (adjust wsF)
 
 -- | Moves the currently focused window to another workspace
 moveToWS :: Int -> FocusMap Int Workspace -> FocusMap Int Workspace
