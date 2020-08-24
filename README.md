@@ -22,7 +22,8 @@ $ stack install # optional, will put sunwm.exe in PATH
 
 ## configuration
 
-sunwm is configured entirely through the <code>Sunwm.hs</code> file. See the included default file for further details.
+sunwm is configured entirely through the <code>sunwm/app/Main.hs</code> file.
+See the included default file <code>Main_default.hs</code> for further details.
 
 ## commands
 
